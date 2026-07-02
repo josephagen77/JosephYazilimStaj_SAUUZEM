@@ -77,7 +77,12 @@ namespace MiniLms.Services
                 var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
 
                 HttpResponseMessage response = await _httpClient.PostAsync(url, content);
-                if (!response.IsSuccessStatusCode) return new List<string>();
+                if (!response.IsSuccessStatusCode)
+                {
+                    string errorContent = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[Qdrant Search Error]: Kod: {response.StatusCode} - Mesaj: {errorContent}");
+                    return new List<string>();
+                }
 
                 string jsonResponse = await response.Content.ReadAsStringAsync();
                 var resultList = new List<string>();
@@ -92,7 +97,11 @@ namespace MiniLms.Services
                             if (point.TryGetProperty("payload", out var payloadProp) &&
                                 payloadProp.TryGetProperty("text", out var textProp))
                             {
-                                resultList.Add(textProp.GetString());
+                                var text = textProp.GetString();
+                                if (!string.IsNullOrWhiteSpace(text))
+                                {
+                                    resultList.Add(text);
+                                }
                             }
                         }
                     }
@@ -106,9 +115,9 @@ namespace MiniLms.Services
             }
         }
 
-        public Task<List<string>> SearchSimilarTextsAsync(string collectionName, List<float> queryVector, int lessonId, int limit = 3, List<float> vectorData = null)
+        public Task<List<string>> SearchSimilarTextsAsync(string collectionName, List<float> queryVector, int lessonId, int limit = 3, List<float>? vectorData = null)
         {
-            throw new NotImplementedException();
+            return SearchSimilarTextsAsync(collectionName, queryVector, limit);
         }
     }
 }

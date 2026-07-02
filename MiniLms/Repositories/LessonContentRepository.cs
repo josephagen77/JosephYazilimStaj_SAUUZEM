@@ -56,9 +56,5 @@ namespace MiniLms.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public Task MarkAsIndexedAsync(object ıd)
-        {
-            throw new NotImplementedException();
-        }
     }
 }

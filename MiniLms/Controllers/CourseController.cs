@@ -3,6 +3,7 @@ using MiniLms.Interfaces;
 using Microsoft.AspNetCore.Http; // 🚀 IFormFile kullanımı için eklenen kütüphane
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MiniLms.Controllers
@@ -79,24 +80,42 @@ namespace MiniLms.Controllers
 
             try
             {
-                // Adım A: Öğrencinin sorusunu Gemini API yardımıyla 768 boyutlu vektör dizisine çeviriyoruz
-                List<float> questionVector = await _aiService.GetEmbeddingAsync(question);
-                if (questionVector == null)
+                var relevantTexts = new List<string>();
+
+                // Adım A: Öğrencinin sorusunu Gemini API yardımıyla vektör dizisine çevirmeyi deniyoruz.
+                // Embedding başarısız olursa chatbot tamamen durmasın; aşağıda veritabanı içeriğine düşeceğiz.
+                List<float>? questionVector = await _aiService.GetEmbeddingAsync(question);
+
+                if (questionVector != null && questionVector.Count > 0)
                 {
-                    return Json(new { success = false, response = "Soru analiz edilirken (embedding) teknik bir hata oluştu." });
+                    // Adım B: Qdrant Vector DB üzerinde bu soruya en yakın/en alakalı 3 metin parçasını arıyoruz
+                    relevantTexts = await _vectorDbService.SearchSimilarTextsAsync(
+                        collectionName: "lesson_contents",
+                        vectorData: questionVector,
+                        limit: 3
+                    );
                 }
 
-                // Adım B: Qdrant Vector DB üzerinde bu soruya en yakın/en alakalı 3 metin parçasını arıyoruz
-                List<string> relevantTexts = await _vectorDbService.SearchSimilarTextsAsync(
-                    collectionName: "lesson_contents",
-                    vectorData: questionVector,
-                    limit: 3
-                );
+                if (relevantTexts == null || relevantTexts.Count == 0)
+                {
+                    var course = await _courseService.GetCourseByIdAsync(courseId);
+                    relevantTexts = course?.Lessons?
+                        .SelectMany(lesson => lesson.Contents ?? Enumerable.Empty<Models.LessonContent>())
+                        .Select(content => !string.IsNullOrWhiteSpace(content.Body) ? content.Body : content.Text)
+                        .Where(text => !string.IsNullOrWhiteSpace(text))
+                        .Take(5)
+                        .ToList() ?? new List<string>();
+                }
+
+                if (relevantTexts.Count == 0)
+                {
+                    return Json(new { success = false, response = "Bu kurs için cevap üretilecek ders içeriği bulunamadı. Önce haftalık içerik veya doküman ekleyin." });
+                }
 
                 // Adım C: Gelen kaynak metinleri tek bir "Context" (Bağlam) bloğu haline getiriyoruz
-                string context = relevantTexts != null && relevantTexts.Count > 0
+                string context = relevantTexts.Count > 0
                     ? string.Join("\n\n", relevantTexts)
-                    : "Bu kursa ait herhangi bir döküman veya ders içeriği yapay zeka hafızasında bulunamadı.";
+                    : "Bu kursa ait herhangi bir döküman veya ders içeriği bulunamadı.";
 
                 // Adım D: Gemini'a sınırlarını ve kurallarını çizen akıllı bir RAG Prompt'u hazırlıyoruz
                 string finalPrompt = $@"
@@ -113,6 +132,10 @@ namespace MiniLms.Controllers
 
                 // Adım E: Prompt'u Gemini'a gönderip ders kaynaklarına göre filtrelenmiş cevabı alıyoruz
                 string aiResponse = await _aiService.SummarizeTextAsync(finalPrompt);
+                if (IsAiServiceError(aiResponse))
+                {
+                    aiResponse = BuildLocalFallbackAnswer(relevantTexts, aiResponse);
+                }
 
                 // JavaScript tarafına (AJAX) başarılı yanıtı döndürüyoruz
                 return Json(new { success = true, response = aiResponse });
@@ -122,6 +145,30 @@ namespace MiniLms.Controllers
                 // Herhangi bir sunucu veya Docker bağlantı koptuğunda güvenli hata mesajı fırlatıyoruz
                 return Json(new { success = false, response = $"Teknik bir hata oluştu: {ex.Message}" });
             }
+        }
+
+        private static bool IsAiServiceError(string response)
+        {
+            return response.Contains("Gemini API", StringComparison.OrdinalIgnoreCase) ||
+                   response.Contains("Yapay zeka servisi", StringComparison.OrdinalIgnoreCase) ||
+                   response.Contains("Özet oluşturulurken teknik bir hata", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildLocalFallbackAnswer(List<string> relevantTexts, string aiError)
+        {
+            string sourcePreview = string.Join(
+                "\n\n",
+                relevantTexts
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .Take(2)
+                    .Select(text => text.Length > 700 ? text.Substring(0, 700) + "..." : text));
+
+            return $@"Gemini yanıt üretirken hata verdi, ancak ders kaynaklarından ilgili içerik bulundu.
+
+Teknik detay: {aiError}
+
+Ders kaynaklarından bulunan içerik:
+{sourcePreview}";
         }
     }
 }

@@ -12,7 +12,8 @@ namespace MiniLms.Interfaces
         Task SaveVectorAsync(string collectionName, int contentId, int lessonId, List<float> vector, string originalText);
 
         // Kullanıcının sorusuna anlamsal olarak en yakın metinleri getirir
-        Task<List<string>> SearchSimilarTextsAsync(string collectionName, List<float> queryVector, int lessonId, int limit = 3, List<float> vectorData = null);
+        Task<List<string>> SearchSimilarTextsAsync(string collectionName, List<float> queryVector, int lessonId, int limit = 3, List<float>? vectorData = null);
         Task<List<string>> SearchSimilarTextsAsync(string collectionName, List<float> vectorData, int limit);
     }
 }
+

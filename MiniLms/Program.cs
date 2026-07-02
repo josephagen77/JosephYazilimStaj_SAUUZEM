@@ -15,9 +15,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ==========================================================
 // REPOSITORY VE SERVİS KAYITLARI (BAĞIMLILIK ENJEKSİYONU)
-// ==========================================================
 
 // Generic Repository Desteği
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
@@ -43,17 +41,13 @@ builder.Services.AddScoped<ILessonRepository, LessonRepository>();
 builder.Services.AddScoped<ILessonService, LessonService>();
 builder.Services.AddScoped<ILessonContentRepository, LessonContentRepository>();
 
-// ==========================================================
 // HTTPCLIENT ENTEGRASYONLU AI VE VECTOR SERVİSLERİ
-// ==========================================================
+
 builder.Services.AddHttpClient<IAiService, AiService>();
 builder.Services.AddHttpClient<IVectorDbService, VectorDbService>();
 builder.Services.AddHostedService<VectorSyncService>();
 
-// ==========================================================
 // 4. AUTOMAPPER PROFİL HARİTALAMASINI KAYDET (HATAYI ÇÖZEN SATIR)
-// ==========================================================
-// Sizin Mapping klasörünüzdeki profilleri otomatik tarayıp IMapper'ı sisteme kaydeder:
 builder.Services.AddAutoMapper(typeof(Program));
 
 var app = builder.Build();

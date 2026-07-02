@@ -12,6 +12,6 @@ namespace MiniLms.Interfaces
         Task<string> GenerateQuizAsync(string text, int questionCount = 5);
 
         // Vector DB (Qdrant) için metinleri 768 boyutlu vektöre çeviren yeni metot
-        Task<List<float>> GetEmbeddingAsync(string text);
+        Task<List<float>?> GetEmbeddingAsync(string text);
     }
 }
