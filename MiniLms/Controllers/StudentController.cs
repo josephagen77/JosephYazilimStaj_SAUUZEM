@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using MiniLms.Interfaces;
 using MiniLms.ViewModels;
 using System;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace MiniLms.Controllers
 {
+    [Authorize(Roles = "Teacher")]
     public class StudentController : Controller
     {
         private readonly IStudentService _studentService;

@@ -1,59 +1,51 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MiniLms.Models;
 
 namespace MiniLms.Data
 {
-    public class ApplicationDbContext : DbContext
+    // 🎯 KRİTİK DEĞİŞİKLİK: Standart DbContext yerine IdentityDbContext<ApplicationUser> entegre edildi.
+    // Bu sayede hem öğretmen/öğrenci giriş tabloları hem de mevcut LMS tabloları tek bir veritabanında birleşir.
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
         }
 
-        // Veritabanı Tablo Setleri (DbSets)
-        public DbSet<Student> Students { get; set; }
+        // --- MEVCUT LMS TABLOLARINIZ ---
         public DbSet<Course> Courses { get; set; }
-        public DbSet<Enrollment> Enrollments { get; set; }
-        // ÖNEMLİ: Burası 'DbSet<object>' ise kesinlikle 'DbSet<CourseDocument>' yapın!
-        public DbSet<CourseDocument> CourseDocuments { get; set; }
-
-        // Data/ApplicationDbContext.cs dosyasının içine eklenecek:
-        public DbSet<LessonContent> LessonContents { get; set; }
-        // Data/ApplicationDbContext.cs içerisine eklenecek:
         public DbSet<Lesson> Lessons { get; set; }
+        public DbSet<LessonContent> LessonContents { get; set; }
+        public DbSet<CourseDocument> CourseDocuments { get; set; }
+        public DbSet<Enrollment> Enrollments { get; set; }
+        public DbSet<Student> Students { get; set; }
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder builder)
         {
-            base.OnModelCreating(modelBuilder);
+            // 🎯 ÇOK KRİTİK: Identity tablolarının (Roller, Yetkiler, Kullanıcılar) arka plandaki 
+            // Fluent API yapılandırmalarının hatasız kurulması için base metodu MUTLAKA ilk satırda çağrılmalıdır.
+            base.OnModelCreating(builder);
 
-            // 1. Enrollment Tablosu Birincil Anahtar Yapılandırması
-            // Modelinizdeki otomatik artan 'Id' alanını anahtar olarak belirliyoruz.
-            modelBuilder.Entity<Enrollment>()
+            builder.Entity<Enrollment>()
                 .HasKey(e => e.Id);
 
-            // 2. Çoka-Çok İlişki (Many-to-Many) ve Yabancı Anahtar Bağlantıları
-
-            // Enrollment -> Student Bağlantısı:
-            // Bir kaydın bir öğrencisi olur; bir öğrenci birden fazla ders kaydına sahip olabilir.
-            modelBuilder.Entity<Enrollment>()
+            builder.Entity<Enrollment>()
                 .HasOne(e => e.Student)
                 .WithMany(s => s.Enrollments)
                 .HasForeignKey(e => e.StudentId)
-                .OnDelete(DeleteBehavior.Cascade); // Öğrenci silinirse kayıtları da silinsin
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // Enrollment -> Course Bağlantısı:
-            // Bir kaydın bir dersi olur; bir ders birden fazla ders kaydına sahip olabilir.
-            modelBuilder.Entity<Enrollment>()
+            builder.Entity<Enrollment>()
                 .HasOne(e => e.Course)
                 .WithMany(c => c.Enrollments)
                 .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
-            // Ders silinirse kayıtları da silinsin
 
-            modelBuilder.Entity<CourseDocument>()
-                .HasOne(hd => hd.Course)
+            builder.Entity<CourseDocument>()
+                .HasOne(d => d.Course)
                 .WithMany(c => c.Documents)
-                .HasForeignKey(hd => hd.CourseId)
+                .HasForeignKey(d => d.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MiniLms.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http; // 🚀 IFormFile kullanımı için eklenen kütüphane
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace MiniLms.Controllers
 {
+    [Authorize]
     public class CourseController : Controller
     {
         private readonly ICourseService _courseService;
@@ -49,6 +51,7 @@ namespace MiniLms.Controllers
 
 
         [HttpPost]
+        [Authorize(Roles = "Teacher")]
         public async Task<IActionResult> UploadDocument(int courseId, IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -71,7 +74,7 @@ namespace MiniLms.Controllers
 
 
         [HttpPost]
-        public async Task<IActionResult> AskAi(int courseId, string question)
+        public async Task<IActionResult> AskAi(int courseId, string question, int? documentId)
         {
             if (string.IsNullOrEmpty(question))
             {
@@ -81,10 +84,26 @@ namespace MiniLms.Controllers
             try
             {
                 var relevantTexts = new List<string>();
+                string selectedSourceName = "Tüm ders kaynakları";
+                string? selectedDocumentPath = null;
+
+                if (documentId.HasValue && documentId.Value > 0)
+                {
+                    var selectedDocument = await _courseDocumentService.GetDocumentByIdAsync(documentId.Value);
+                    if (selectedDocument == null || selectedDocument.CourseId != courseId)
+                    {
+                        return Json(new { success = false, response = "Seçilen doküman bu derse ait değil veya bulunamadı." });
+                    }
+
+                    selectedSourceName = selectedDocument.FileName;
+                    selectedDocumentPath = selectedDocument.FilePath;
+                }
 
                 // Adım A: Öğrencinin sorusunu Gemini API yardımıyla vektör dizisine çevirmeyi deniyoruz.
                 // Embedding başarısız olursa chatbot tamamen durmasın; aşağıda veritabanı içeriğine düşeceğiz.
-                List<float>? questionVector = await _aiService.GetEmbeddingAsync(question);
+                List<float>? questionVector = selectedDocumentPath == null
+                    ? await _aiService.GetEmbeddingAsync(question)
+                    : null;
 
                 if (questionVector != null && questionVector.Count > 0)
                 {
@@ -98,18 +117,29 @@ namespace MiniLms.Controllers
 
                 if (relevantTexts == null || relevantTexts.Count == 0)
                 {
-                    var course = await _courseService.GetCourseByIdAsync(courseId);
-                    relevantTexts = course?.Lessons?
-                        .SelectMany(lesson => lesson.Contents ?? Enumerable.Empty<Models.LessonContent>())
-                        .Select(content => !string.IsNullOrWhiteSpace(content.Body) ? content.Body : content.Text)
-                        .Where(text => !string.IsNullOrWhiteSpace(text))
-                        .Take(5)
-                        .ToList() ?? new List<string>();
+                    if (documentId.HasValue && documentId.Value > 0)
+                    {
+                        relevantTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId.Value);
+                    }
+                    else
+                    {
+                        var course = await _courseService.GetCourseByIdAsync(courseId);
+                        relevantTexts = course?.Lessons?
+                            .SelectMany(lesson => lesson.Contents ?? Enumerable.Empty<Models.LessonContent>())
+                            .Select(content => !string.IsNullOrWhiteSpace(content.Body) ? content.Body : content.Text)
+                            .Where(text => !string.IsNullOrWhiteSpace(text))
+                            .Take(5)
+                            .ToList() ?? new List<string>();
+                    }
                 }
 
                 if (relevantTexts.Count == 0)
                 {
-                    return Json(new { success = false, response = "Bu kurs için cevap üretilecek ders içeriği bulunamadı. Önce haftalık içerik veya doküman ekleyin." });
+                    string emptyMessage = selectedDocumentPath == null
+                        ? "Bu kurs için cevap üretilecek ders içeriği bulunamadı. Önce haftalık içerik veya doküman ekleyin."
+                        : "Seçilen doküman için cevap üretilecek metin bulunamadı. Dokümanı tekrar yükleyip işlendiğinden emin olun.";
+
+                    return Json(new { success = false, response = emptyMessage });
                 }
 
                 // Adım C: Gelen kaynak metinleri tek bir "Context" (Bağlam) bloğu haline getiriyoruz
@@ -122,6 +152,9 @@ namespace MiniLms.Controllers
                     Sen bu dersin yapay zeka asistanısın. Aşağıda sana bu dersin içeriğinden alınan kaynak metinler (Bağlam) verilmiştir.
                     Lütfen ÖĞRENCİNİN SORUSU'nu sadece ve sadece verilen BAĞLAM'a sadık kalarak, kendi yorumunu veya dışarıdan bilgi eklemeden, akademik ve net bir dilde cevapla.
                     Eğer soru bağlamla ilgili değilse veya bağlamda kesin bir cevabı yoksa, kibarca 'Bu sorunun cevabı ders içeriklerinde yer almamaktadır.' de.
+
+                    SEÇİLEN KAYNAK:
+                    {selectedSourceName}
 
                     BAĞLAM:
                     {context}
@@ -147,6 +180,49 @@ namespace MiniLms.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> DocumentSummary(int courseId, int documentId)
+        {
+            try
+            {
+                var document = await _courseDocumentService.GetDocumentByIdAsync(documentId);
+                if (document == null || document.CourseId != courseId)
+                {
+                    return Json(new { success = false, response = "Seçilen doküman bu derse ait değil veya bulunamadı." });
+                }
+
+                var documentTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId, maxChunks: 4);
+                if (documentTexts.Count == 0)
+                {
+                    return Json(new { success = false, response = "Bu dokümandan özet üretilecek metin çıkarılamadı." });
+                }
+
+                string sourceText = string.Join("\n\n", documentTexts);
+                string summaryPrompt = $@"
+                    Aşağıdaki ders dokümanını öğrencinin hızlıca anlayacağı şekilde Türkçe özetle.
+                    En önemli konu başlıklarını, dokümanın kapsamını ve sınav/çalışma açısından dikkat edilmesi gereken noktaları kısa paragraflarla ver.
+
+                    DOKÜMAN ADI:
+                    {document.FileName}
+
+                    DOKÜMAN METNİ:
+                    {sourceText}
+                ";
+
+                string summary = await _aiService.SummarizeTextAsync(summaryPrompt);
+                if (IsAiServiceError(summary))
+                {
+                    summary = BuildLocalDocumentSummary(document.FileName, documentTexts, summary);
+                }
+
+                return Json(new { success = true, response = summary });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, response = $"Doküman özeti alınırken teknik bir hata oluştu: {ex.Message}" });
+            }
+        }
+
         private static bool IsAiServiceError(string response)
         {
             return response.Contains("Gemini API", StringComparison.OrdinalIgnoreCase) ||
@@ -169,6 +245,23 @@ Teknik detay: {aiError}
 
 Ders kaynaklarından bulunan içerik:
 {sourcePreview}";
+        }
+
+        private static string BuildLocalDocumentSummary(string fileName, List<string> documentTexts, string aiError)
+        {
+            string preview = string.Join(
+                "\n\n",
+                documentTexts
+                    .Where(text => !string.IsNullOrWhiteSpace(text))
+                    .Take(2)
+                    .Select(text => text.Length > 900 ? text.Substring(0, 900) + "..." : text));
+
+            return $@"{fileName} dokümanından metin çıkarıldı, ancak Gemini otomatik özet üretemedi.
+
+Teknik detay: {aiError}
+
+Dokümandan kısa önizleme:
+{preview}";
         }
     }
 }

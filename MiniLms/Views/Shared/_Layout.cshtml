@@ -1,4 +1,9 @@
 ﻿<!DOCTYPE html>
+@using Microsoft.AspNetCore.Identity
+@using MiniLms.Models
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
@@ -48,6 +53,46 @@
                                 <i class="bi bi-shield-lock"></i> Gizlilik
                             </a>
                         </li>
+                    </ul>
+                    <ul class="navbar-nav ms-auto">
+                        @if (SignInManager.IsSignedIn(User))
+                        {
+                            var currentUser = await UserManager.GetUserAsync(User);
+                            var roles = currentUser == null
+                                ? new List<string>()
+                                : await UserManager.GetRolesAsync(currentUser);
+
+                            <li class="nav-item d-flex align-items-center me-2">
+                                <span class="navbar-text text-dark">
+                                    <i class="bi bi-person-circle"></i>
+                                    @(currentUser?.FirstName ?? User.Identity?.Name)
+                                    @if (roles.Any())
+                                    {
+                                        <span class="badge bg-primary ms-1">@string.Join(", ", roles)</span>
+                                    }
+                                </span>
+                            </li>
+                            <li class="nav-item">
+                                <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-box-arrow-right"></i> Çıkış
+                                    </button>
+                                </form>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">
+                                    <i class="bi bi-box-arrow-in-right"></i> Giriş
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="btn btn-sm btn-primary ms-2" asp-controller="Account" asp-action="Register">
+                                    <i class="bi bi-person-plus"></i> Kayıt
+                                </a>
+                            </li>
+                        }
                     </ul>
                 </div>
             </div>

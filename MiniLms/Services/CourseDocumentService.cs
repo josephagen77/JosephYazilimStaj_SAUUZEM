@@ -93,6 +93,50 @@ namespace MiniLms.Services
             }
         }
 
+        public async Task<List<string>> GetDocumentTextChunksAsync(int documentId, int maxChunks = 5)
+        {
+            var document = await _context.CourseDocuments.FindAsync(documentId);
+            if (document == null)
+            {
+                return new List<string>();
+            }
+
+            var indexedChunks = await _context.LessonContents
+                .Where(content => content.ResourceUrl == document.FilePath)
+                .OrderBy(content => content.Order)
+                .Select(content => !string.IsNullOrWhiteSpace(content.Body) ? content.Body : content.Text)
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .Take(maxChunks)
+                .ToListAsync();
+
+            if (indexedChunks.Count > 0)
+            {
+                return indexedChunks;
+            }
+
+            string physicalPath = Path.Combine(_webHostEnvironment.WebRootPath, document.FilePath.TrimStart('/'));
+            if (!File.Exists(physicalPath))
+            {
+                return new List<string>();
+            }
+
+            string extension = Path.GetExtension(physicalPath).ToLowerInvariant();
+            string extractedText = extension == ".pdf"
+                ? ExtractTextFromPdf(physicalPath)
+                : extension == ".txt"
+                    ? await File.ReadAllTextAsync(physicalPath)
+                    : string.Empty;
+
+            if (string.IsNullOrWhiteSpace(extractedText))
+            {
+                return new List<string>();
+            }
+
+            return SplitText(extractedText, 3000)
+                .Take(maxChunks)
+                .ToList();
+        }
+
         public async Task UploadDocumentAsync(int courseId, IFormFile file)
         {
             if (file == null || file.Length == 0)

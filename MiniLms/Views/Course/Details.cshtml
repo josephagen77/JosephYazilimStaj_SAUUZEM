@@ -27,6 +27,19 @@
         <div class="col-md-8">
             <h3 class="mb-4">📚 Haftalık Ders Müfredatı</h3>
 
+            <!-- Seçilen Dokümanın Özeti -->
+            <div class="card shadow-sm border-info mb-4">
+                <div class="card-header bg-info text-white fw-bold">
+                    📝 Seçilen Doküman Özeti
+                </div>
+                <div class="card-body">
+                    <h6 id="docSummaryTitle" class="fw-semibold text-dark mb-2">Henüz doküman seçilmedi</h6>
+                    <p id="docSummaryText" class="text-muted small mb-0" style="white-space: pre-line; line-height: 1.55;">
+                        Soru kaynağı alanından bir doküman seçtiğinizde özeti burada gösterilir.
+                    </p>
+                </div>
+            </div>
+
             @if (Model.Lessons != null && Model.Lessons.Any())
             {
                 <div class="accordion" id="lessonsAccordion">
@@ -177,6 +190,21 @@
                         <p id="aiResponseText" class="mt-2 text-dark" style="white-space: pre-line; line-height: 1.6;"></p>
                     </div>
 
+                    <!-- Kaynak Seçimi -->
+                    <div class="mb-3">
+                        <label for="ragDocumentId" class="form-label small fw-bold">Soru kaynağı:</label>
+                        <select id="ragDocumentId" class="form-select">
+                            <option value="">Tüm ders kaynakları</option>
+                            @if (Model.Documents != null && Model.Documents.Any())
+                            {
+                                foreach (var doc in Model.Documents.OrderByDescending(d => d.UploadedDate))
+                                {
+                                    <option value="@doc.Id">@doc.FileName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
                     <!-- Soru Formu Girişi -->
                     <div class="input-group input-group-lg">
                         <input type="hidden" id="ragCourseId" value="@Model.Id" />
@@ -196,9 +224,47 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function () {
+        function loadDocumentSummary() {
+        var courseIdVal = $("#ragCourseId").val();
+        var documentIdVal = $("#ragDocumentId").val();
+        var selectedText = $("#ragDocumentId option:selected").text();
+
+        if (!documentIdVal) {
+        $("#docSummaryTitle").text("Tüm ders kaynakları");
+        $("#docSummaryText").removeClass("text-danger").addClass("text-muted").text("Belirli bir doküman seçtiğinizde özeti burada gösterilir.");
+        return;
+        }
+
+        $("#docSummaryTitle").text(selectedText);
+        $("#docSummaryText").removeClass("text-danger").addClass("text-muted").text("Doküman özeti hazırlanıyor...");
+
+        $.ajax({
+        url: '/Course/DocumentSummary',
+        type: 'GET',
+        data: {
+        courseId: courseIdVal,
+        documentId: documentIdVal
+        },
+        success: function (data) {
+        if (data.success) {
+        $("#docSummaryText").removeClass("text-danger text-muted").addClass("text-dark").text(data.response);
+        } else {
+        $("#docSummaryText").removeClass("text-dark text-muted").addClass("text-danger").text(data.response);
+        }
+        },
+        error: function () {
+        $("#docSummaryText").removeClass("text-dark text-muted").addClass("text-danger").text("Doküman özeti alınırken teknik bir hata oluştu.");
+        }
+        });
+        }
+
+        $("#ragDocumentId").change(loadDocumentSummary);
+        loadDocumentSummary();
+
         $("#btnAskAi").click(function () {
         var questionText = $("#studentQuestion").val().trim();
         var courseIdVal = $("#ragCourseId").val();
+        var documentIdVal = $("#ragDocumentId").val();
 
         if (questionText === "") {
         alert("Lütfen boş bir soru sormayın.");
@@ -216,7 +282,8 @@
         type: 'POST',
         data: {
         courseId: courseIdVal,
-        question: questionText
+        question: questionText,
+        documentId: documentIdVal
         },
         success: function (data) {
         if (data.success) {

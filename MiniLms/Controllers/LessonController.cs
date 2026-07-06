@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MiniLms.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using MiniLms.Models;
 
 namespace MiniLms.Controllers
 {
+    [Authorize(Roles = "Teacher")]
     public class LessonController : Controller
     {
         private readonly ILessonService _lessonService;

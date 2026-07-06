@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Authorization;
 using MiniLms.Interfaces;
 using MiniLms.Models;
 using System;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace MiniLms.Controllers
 {
+    [Authorize(Roles = "Teacher")]
     public class EnrollmentController : Controller
     {
         private readonly IEnrollmentService _enrollmentService;
