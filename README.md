@@ -1,8 +1,12 @@
 # MiniLMS AI
 
-AI destekli Learning Management System (LMS)
 
-ASP.NET Core MVC tabanlı, Gemini AI ve Qdrant Vector Database kullanan akıllı öğrenme yönetim sistemi.
+
+MiniLMS AI is an intelligent Learning Management System (LMS) built with ASP.NET Core MVC. The platform enables teachers to create and manage courses, lessons, and educational materials, while allowing students to enroll in courses and access learning content through a modern web interface.
+
+The project integrates Google Gemini AI and Qdrant Vector Database to provide AI-powered features such as document summarization, semantic search, and intelligent question answering. Course materials are automatically processed, converted into vector embeddings, and indexed for fast and context-aware information retrieval.
+
+The primary goal of this project is to demonstrate modern backend development practices by combining clean architecture principles, AI technologies, and vector search into a scalable educational platform.
 
 ## Project Overview
 
