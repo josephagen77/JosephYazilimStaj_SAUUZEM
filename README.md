@@ -40,8 +40,8 @@ Instead of performing keyword searches, the application generates semantic embed
 - Qdrant Vector Database
 - REST API
 
-   Presentation (MVC)
-│
+## Presentation (MVC)
+```
 ├── Controllers
 ├── Views
 ├── ViewModels
@@ -68,9 +68,9 @@ Gemini API
 Vector Layer
 │
 Qdrant
-
-MiniLMS
-│
+```
+## MiniLMS
+```
 ├── Controllers
 ├── Data
 ├── Interfaces
@@ -82,21 +82,21 @@ MiniLMS
 ├── ViewModels
 ├── Views
 ├── Program.cs
-
+```
 ## Installation
 
 1. Clone repository
-
+```
 git clone ...
-
+```
 2. Install packages
-
+```
 dotnet restore
-
+```
 3. Update database
-
+```
 dotnet ef database update
-
+```
 4. Configure Gemini API Key
 
 User Secrets
@@ -106,5 +106,6 @@ User Secrets
 Docker
 
 6. Start project
-
+```
 dotnet run
+```
