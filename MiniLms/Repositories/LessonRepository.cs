@@ -2,9 +2,6 @@
 using MiniLms.Data;
 using MiniLms.Interfaces;
 using MiniLms.Models;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace MiniLms.Repositories
 {
@@ -22,14 +19,12 @@ namespace MiniLms.Repositories
             throw new NotImplementedException();
         }
 
-        // Bir kursa/derse ait tüm haftalık konuları getiren metot
         public async Task<IEnumerable<Lesson>> GetByCourseIdAsync(int courseId)
         {
             return await _context.Lessons
-                .AsNoTracking() // Performans optimizasyonu için takip mekanizmasını kapatıyoruz
-                .Where(l => l.CourseId
-                == courseId)
-                .OrderBy(l => l.WeekNumber) // Haftalık sıralı gelmesi için
+                .AsNoTracking()
+                .Where(l => l.CourseId == courseId)
+                .OrderBy(l => l.WeekNumber)
                 .ToListAsync();
         }
     }

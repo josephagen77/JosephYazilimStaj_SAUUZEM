@@ -25,6 +25,11 @@ namespace MiniLms.Services
             return await _enrollmentRepository.GetByIdAsync(id);
         }
 
+        public async Task<IEnumerable<Enrollment>> GetEnrollmentsByStudentIdAsync(int studentId)
+        {
+            return await _enrollmentRepository.GetByStudentIdAsync(studentId);
+        }
+
         // ÖĞRENCİYİ DERSE KAYDETME 
         public async Task EnrollStudentAsync(Enrollment enrollment)
         {

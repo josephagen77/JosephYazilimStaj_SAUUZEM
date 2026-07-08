@@ -7,5 +7,6 @@ namespace MiniLms.Interfaces
     {
         // Bir öğrencinin belirli bir derse kaydı var mı
         Task<Enrollment?> GetByStudentAndCourseIdAsync(int studentId, int courseId);
+        Task<IEnumerable<Enrollment>> GetByStudentIdAsync(int studentId);
     }
 }

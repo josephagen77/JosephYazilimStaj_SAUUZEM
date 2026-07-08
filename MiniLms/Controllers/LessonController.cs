@@ -2,10 +2,11 @@
 using MiniLms.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using MiniLms.Models;
+using MiniLms.Models.Enums;
 
 namespace MiniLms.Controllers
 {
-    [Authorize(Roles = "Teacher")]
+    [Authorize(Policy = UserPolicies.TeacherOnly)]
     public class LessonController : Controller
     {
         private readonly ILessonService _lessonService;

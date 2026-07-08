@@ -37,6 +37,11 @@ namespace MiniLms.Services
             return await _studentRepository.GetStudentWithEnrollmentsAsync(id);
         }
 
+        public async Task<Student?> GetStudentByNumberAsync(string studentNumber)
+        {
+            return await _studentRepository.GetByStudentNumberAsync(studentNumber);
+        }
+
         // Yeni öğrenci kaydeder ve mükerrer numara kontrolü yapar
         public async Task AddStudentAsync(StudentCreateViewModel model)
         {

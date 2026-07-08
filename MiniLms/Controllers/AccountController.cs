@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MiniLms.Interfaces;
 using MiniLms.Models;
 using MiniLms.Models.Enums;
 using MiniLms.ViewModels;
@@ -11,13 +13,16 @@ namespace MiniLms.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IStudentService _studentService;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager)
+            SignInManager<ApplicationUser> signInManager,
+            IStudentService studentService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _studentService = studentService;
         }
 
         [HttpGet]
@@ -48,6 +53,12 @@ namespace MiniLms.Controllers
                 if (!string.IsNullOrWhiteSpace(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
                 {
                     return Redirect(model.ReturnUrl);
+                }
+
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user != null && await _userManager.IsInRoleAsync(user, UserRoles.Student))
+                {
+                    return RedirectToAction("Index", "StudentCourses");
                 }
 
                 return RedirectToAction("Index", "Home");
@@ -84,6 +95,18 @@ namespace MiniLms.Controllers
                 return View(model);
             }
 
+            if (model.Role == UserRoles.Student)
+            {
+                var studentNumberInUse = await _userManager.Users
+                    .AnyAsync(u => u.StudentNumber == model.StudentNumber);
+
+                if (studentNumberInUse)
+                {
+                    ModelState.AddModelError(nameof(model.StudentNumber), "Bu öğrenci numarasıyla zaten bir kullanıcı kaydı var.");
+                    return View(model);
+                }
+            }
+
             var user = new ApplicationUser
             {
                 UserName = model.Email,
@@ -105,7 +128,28 @@ namespace MiniLms.Controllers
             }
 
             await _userManager.AddToRoleAsync(user, model.Role);
+
+            if (model.Role == UserRoles.Student)
+            {
+                var existingStudent = await _studentService.GetStudentByNumberAsync(model.StudentNumber!);
+                if (existingStudent == null)
+                {
+                    await _studentService.AddStudentAsync(new StudentCreateViewModel
+                    {
+                        FirstName = model.FirstName,
+                        LastName = model.LastName,
+                        Email = model.Email,
+                        StudentNumber = model.StudentNumber!
+                    });
+                }
+            }
+
             await _signInManager.SignInAsync(user, isPersistent: false);
+
+            if (model.Role == UserRoles.Student)
+            {
+                return RedirectToAction("Index", "StudentCourses");
+            }
 
             return RedirectToAction("Index", "Home");
         }

@@ -10,6 +10,7 @@ namespace MiniLms.Interfaces
         Task<IEnumerable<Student>> GetAllStudentsAsync();
         Task<Student?> GetStudentByIdAsync(int id);
         Task<Student?> GetStudentWithEnrollmentsAsync(int id);
+        Task<Student?> GetStudentByNumberAsync(string studentNumber);
         Task AddStudentAsync(StudentCreateViewModel model);
         Task UpdateStudentAsync(StudentEditViewModel model);
         Task DeleteStudentAsync(int id);

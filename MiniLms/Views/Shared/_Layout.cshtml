@@ -17,44 +17,59 @@
 
 <body>
     <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand text-primary fw-bold" asp-area="" asp-controller="Home" asp-action="Index">
-                    <i class="bi bi-mortarboard-fill"></i> MiniLms
+        <nav class="navbar navbar-expand-lg navbar-light app-navbar sticky-top">
+            <div class="container">
+                <a class="navbar-brand fw-bold d-flex align-items-center" asp-area="" asp-controller="Home" asp-action="Index">
+                    <span class="brand-mark"><i class="bi bi-mortarboard-fill"></i></span>
+                    MiniLms
                 </a>
-                <button class="navbar-expand-sm navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
+                <div class="navbar-collapse collapse justify-content-between">
+                    <ul class="navbar-nav flex-grow-1 gap-lg-1">
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">
                                 <i class="bi bi-house-door"></i> Ana Sayfa
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Student" asp-action="Index">
-                                <i class="bi bi-people"></i> Öğrenciler
-                            </a>
-                        </li>
+                        @if (User.IsInRole("Teacher"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="Student" asp-action="Index">
+                                    <i class="bi bi-people"></i> Öğrenciler
+                                </a>
+                            </li>
+                        }
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Course" asp-action="Index">
                                 <i class="bi bi-book"></i> Dersler
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Enrollment" asp-action="Index">
-                                <i class="bi bi-pen"></i> Ders Kayıtları
-                            </a>
-                        </li>
+                        @if (User.IsInRole("Student"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="StudentCourses" asp-action="Index">
+                                    <i class="bi bi-journal-check"></i> Derslerim
+                                </a>
+                            </li>
+                        }
+                        @if (User.IsInRole("Teacher"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-area="" asp-controller="Enrollment" asp-action="Index">
+                                    <i class="bi bi-pen"></i> Ders Kayıtları
+                                </a>
+                            </li>
+                        }
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">
                                 <i class="bi bi-shield-lock"></i> Gizlilik
                             </a>
                         </li>
                     </ul>
-                    <ul class="navbar-nav ms-auto">
+                    <ul class="navbar-nav ms-auto align-items-lg-center gap-2">
                         @if (SignInManager.IsSignedIn(User))
                         {
                             var currentUser = await UserManager.GetUserAsync(User);
@@ -62,8 +77,8 @@
                                 ? new List<string>()
                                 : await UserManager.GetRolesAsync(currentUser);
 
-                            <li class="nav-item d-flex align-items-center me-2">
-                                <span class="navbar-text text-dark">
+                            <li class="nav-item d-flex align-items-center">
+                                <span class="navbar-text text-dark small">
                                     <i class="bi bi-person-circle"></i>
                                     @(currentUser?.FirstName ?? User.Identity?.Name)
                                     @if (roles.Any())
@@ -74,8 +89,8 @@
                             </li>
                             <li class="nav-item">
                                 <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                                        <i class="bi bi-box-arrow-right"></i> Çıkış
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Çıkış Yap">
+                                        <i class="bi bi-box-arrow-right"></i>
                                     </button>
                                 </form>
                             </li>
@@ -88,7 +103,7 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="btn btn-sm btn-primary ms-2" asp-controller="Account" asp-action="Register">
+                                <a class="btn btn-sm btn-primary" asp-controller="Account" asp-action="Register">
                                     <i class="bi bi-person-plus"></i> Kayıt
                                 </a>
                             </li>
@@ -99,15 +114,16 @@
         </nav>
     </header>
 
-    <div class="container">
-        <main role="main" class="pb-3">
+    <div class="container main-shell">
+        <main role="main">
             @RenderBody()
         </main>
     </div>
 
-    <footer class="border-top footer text-muted bg-light position-fixed bottom-0 start-0 w-100 py-2">
-        <div class="container text-center">
-            &copy; @DateTime.Now.Year - MiniLms - <a asp-area="" asp-controller="Home" asp-action="Privacy">Gizlilik</a>
+    <footer class="app-footer py-3">
+        <div class="container d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2 small">
+            <span>&copy; @DateTime.Now.Year MiniLms</span>
+            <a asp-area="" asp-controller="Home" asp-action="Privacy">Gizlilik</a>
         </div>
     </footer>
 

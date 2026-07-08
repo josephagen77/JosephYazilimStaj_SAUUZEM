@@ -64,5 +64,14 @@ namespace MiniLms.Repositories
             return await _context.Enrollments
                 .FirstOrDefaultAsync(e => e.StudentId == studentId && e.CourseId == courseId);
         }
+
+        public async Task<IEnumerable<Enrollment>> GetByStudentIdAsync(int studentId)
+        {
+            return await _context.Enrollments
+                .Include(e => e.Course)
+                .Where(e => e.StudentId == studentId)
+                .AsNoTracking()
+                .ToListAsync();
+        }
     }
 }

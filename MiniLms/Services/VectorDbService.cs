@@ -11,11 +11,35 @@ namespace MiniLms.Services
     public class VectorDbService : IVectorDbService
     {
         private readonly HttpClient _httpClient;
-        private const string QdrantBaseUrl = "http://localhost:6333";
+        private readonly ILogger<VectorDbService> _logger;
 
-        public VectorDbService(HttpClient httpClient)
+        private const string QdrantBaseUrl = "http://localhost:6333";
+        
+
+        public VectorDbService(HttpClient httpClient, ILogger<VectorDbService> logger
+            )
         {
             _httpClient = httpClient;
+            _logger = logger;
+        }
+        public async Task<bool> DeleteVectorAsync(string pointId)
+        {
+            try
+            {
+                // Qdrant API'sine ilgili pointId için DELETE isteği atılır
+                string url = $"http://localhost:6333/collections/MiniLmsCollection/points/delete";
+                var payload = new { points = new[] { pointId } };
+
+                var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                var response = await _httpClient.PostAsync(url, content); // Qdrant delete endpoint'i genellikle POST veya DELETE kabul eder
+
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Qdrant silme işlemi sırasında hata oluştu.");
+                return false;
+            }
         }
 
         public async Task EnsureCollectionExistsAsync(string collectionName)
@@ -80,7 +104,10 @@ namespace MiniLms.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     string errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[Qdrant Search Error]: Kod: {response.StatusCode} - Mesaj: {errorContent}");
+                    _logger.LogError(
+                    "Qdrant arama hatası. StatusCode: {StatusCode}, Error: {Error}",
+                    response.StatusCode,
+                    errorContent);
                     return new List<string>();
                 }
 
@@ -109,8 +136,9 @@ namespace MiniLms.Services
 
                 return resultList;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Qdrant arama sırasında beklenmeyen hata oluştu.");
                 return new List<string>();
             }
         }
@@ -118,6 +146,16 @@ namespace MiniLms.Services
         public Task<List<string>> SearchSimilarTextsAsync(string collectionName, List<float> queryVector, int lessonId, int limit = 3, List<float>? vectorData = null)
         {
             return SearchSimilarTextsAsync(collectionName, queryVector, limit);
+        }
+
+        public Task<bool> DeleteVectorAsync(string collectionName, List<long> pointIds)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task<bool> DeleteVectorAsync(List<long> pointIds)
+        {
+            throw new NotImplementedException();
         }
     }
 }

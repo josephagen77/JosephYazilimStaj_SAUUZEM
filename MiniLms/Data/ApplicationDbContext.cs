@@ -31,6 +31,10 @@ namespace MiniLms.Data
                 .HasKey(e => e.Id);
 
             builder.Entity<Enrollment>()
+                .HasIndex(e => new { e.StudentId, e.CourseId })
+                .IsUnique();
+
+            builder.Entity<Enrollment>()
                 .HasOne(e => e.Student)
                 .WithMany(s => s.Enrollments)
                 .HasForeignKey(e => e.StudentId)

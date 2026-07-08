@@ -1,11 +1,11 @@
-﻿using Microsoft.Extensions.Configuration;
-using MiniLms.Interfaces;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using MiniLms.Interfaces;
+using Microsoft.Extensions.Configuration;
 
 namespace MiniLms.Services
 {
@@ -15,146 +15,61 @@ namespace MiniLms.Services
         private readonly string _apiKey;
         private readonly string _textModel;
         private readonly string _embeddingModel;
-        private readonly int _embeddingDimensions;
 
         public AiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
-            // 🎯 DÜZELTİLDİ: appsettings.json içindeki doğru hiyerarşik anahtar çağrıldı
-            _apiKey = configuration["Gemini:ApiKey"] ?? string.Empty;
-            _textModel = configuration["Gemini:TextModel"] ?? "gemini-3.5-flash";
+            // appsettings.json içerisindeki Gemini:ApiKey alanını okur
+            _apiKey = configuration["Gemini:ApiKey"] ?? "";
+            _textModel = configuration["Gemini:TextModel"] ?? "gemini-2.5-flash";
             _embeddingModel = configuration["Gemini:EmbeddingModel"] ?? "gemini-embedding-001";
-            _embeddingDimensions = int.TryParse(configuration["Gemini:EmbeddingDimensions"], out int dimensions)
-                ? dimensions
-                : 768;
         }
 
-        // 1. YAPAY ZEKA ÖZETLEME METODU
-        public async Task<string> SummarizeTextAsync(string text)
-        {
-            if (string.IsNullOrEmpty(text)) return "Özetlenecek metin boş.";
-            if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey.Equals("apikey", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Gemini API anahtarı tanımlı değil. appsettings.json içindeki Gemini:ApiKey alanına geçerli bir Google AI Studio API anahtarı girin.";
-            }
-
-            try
-            {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_textModel}:generateContent?key={_apiKey}";
-
-                string prompt = text.Contains("ÖĞRENCİNİN SORUSU:", StringComparison.OrdinalIgnoreCase)
-                    ? text
-                    : $"Lütfen aşağıdaki metni akademik ve anlaşılır bir dilde özetle:\n\n{text}";
-
-                var requestBody = new
-                {
-                    contents = new[]
-                    {
-                        new { parts = new[] { new { text = prompt } } }
-                    }
-                };
-
-                var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync(url, content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    string err = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[Summarize Error]: {err}");
-                    return BuildGeminiErrorMessage((int)response.StatusCode, err);
-                }
-
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-                using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
-                {
-                    return doc.RootElement
-                        .GetProperty("candidates")[0]
-                        .GetProperty("content")
-                        .GetProperty("parts")[0]
-                        .GetProperty("text")
-                        .GetString();
-                }
-            }
-            catch (Exception ex)
-            {
-                return $"Özet oluşturulurken teknik bir hata oluştu: {ex.Message}";
-            }
-        }
-
-        // 2. YAPAY ZEKA QUIZ ÜRETME METODU
         public async Task<string> GenerateQuizAsync(string text, int questionCount = 5)
         {
-            if (string.IsNullOrEmpty(text)) return "Quiz üretilecek metin boş.";
-            if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey.Equals("apikey", StringComparison.OrdinalIgnoreCase))
-            {
-                return "Gemini API anahtarı tanımlı değil. appsettings.json içindeki Gemini:ApiKey alanına geçerli bir Google AI Studio API anahtarı girin.";
-            }
+            if (string.IsNullOrWhiteSpace(text)) return "Quiz üretilecek metin boş.";
 
-            try
-            {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_textModel}:generateContent?key={_apiKey}";
-
-                var requestBody = new
-                {
-                    contents = new[]
-                    {
-                        new { parts = new[] { new { text = $"Aşağıdaki metne dayanarak, cevapları net olan {questionCount} adet çoktan seçmeli soru hazırla:\n\n{text}" } } }
-                    }
-                };
-
-                var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync(url, content);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    string err = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[Quiz Error]: {err}");
-                    return BuildGeminiErrorMessage((int)response.StatusCode, err);
-                }
-
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-                using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
-                {
-                    return doc.RootElement
-                        .GetProperty("candidates")[0]
-                        .GetProperty("content")
-                        .GetProperty("parts")[0]
-                        .GetProperty("text")
-                        .GetString();
-                }
-            }
-            catch (Exception ex)
-            {
-                return $"Quiz oluşturulurken teknik bir hata oluştu: {ex.Message}";
-            }
+            string prompt = $"Aşağıdaki metne dayanarak {questionCount} adet çoktan seçmeli soru hazırla:\n\n{text}";
+            return await SummarizeTextAsync(prompt);
         }
 
-        // 3. YAPAY ZEKA EMBEDDING (VEKTÖRLEŞTİRME) METODU
-        // 3. YAPAY ZEKA EMBEDDING (VEKTÖRLEŞTİRME) METODU
+        /// <summary>
+        /// Verilen metni 768 boyutlu bir vektör dizisine (Embedding) çevirir.
+        /// </summary>
         public async Task<List<float>?> GetEmbeddingAsync(string text)
         {
             if (string.IsNullOrEmpty(text)) return null;
-            if (string.IsNullOrWhiteSpace(_apiKey) || _apiKey.Equals("apikey", StringComparison.OrdinalIgnoreCase))
+            if (!HasValidApiKey())
             {
-                Console.WriteLine("[Embedding API Hatası]: Gemini API anahtarı tanımlı değil.");
+                Console.WriteLine("[Embedding API Hatası]: Gemini API anahtarı geçerli görünmüyor.");
                 return null;
             }
 
             try
             {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_embeddingModel}:embedContent?key={_apiKey}";
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_embeddingModel}:embedContent";
 
                 var requestBody = new
                 {
-                    taskType = "QUESTION_ANSWERING",
-                    output_dimensionality = _embeddingDimensions,
                     content = new { parts = new[] { new { text = text } } }
                 };
 
                 string jsonPayload = JsonSerializer.Serialize(requestBody);
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
 
-                HttpResponseMessage response = await _httpClient.PostAsync(url, content);
+                // Temiz ve izole bir HTTP Request paketi oluşturuluyor
+                var request = new HttpRequestMessage(HttpMethod.Post, url);
+
+                // İçerik tipi (Content-Type) manuel olarak ezilerek local çerezlerin sızması engelleniyor
+                var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                stringContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                request.Content = stringContent;
+                request.Headers.Add("x-goog-api-key", _apiKey);
+
+                // HttpClient fabrikasından gelebilecek tüm kirli header geçmişini sıfırlıyoruz
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                HttpResponseMessage response = await _httpClient.SendAsync(request);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -168,7 +83,6 @@ namespace MiniLms.Services
                 using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
                 {
                     var root = doc.RootElement;
-
                     if (root.TryGetProperty("embedding", out var embeddingProp) &&
                         embeddingProp.TryGetProperty("values", out var valuesProp))
                     {
@@ -189,18 +103,96 @@ namespace MiniLms.Services
             }
         }
 
+        /// <summary>
+        /// Hazırlanan RAG promptunu Gemini modeline göndererek bağlamsal cevap veya özet üretir.
+        /// </summary>
+        public async Task<string> SummarizeTextAsync(string prompt)
+        {
+            if (string.IsNullOrEmpty(prompt)) return "Prompt içeriği boş olamaz.";
+            if (!HasValidApiKey())
+            {
+                return "Gemini API anahtarı geçerli değil. Google AI Studio'dan alınan API key'i appsettings.json içindeki Gemini:ApiKey alanına ekleyin.";
+            }
+
+            try
+            {
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_textModel}:generateContent";
+
+                var requestBody = new
+                {
+                    contents = new[]
+                    {
+                        new { parts = new[] { new { text = prompt } } }
+                    }
+                };
+
+                string jsonPayload = JsonSerializer.Serialize(requestBody);
+
+                // İstek gövdesi tamamen sterilize ediliyor
+                var request = new HttpRequestMessage(HttpMethod.Post, url);
+
+                var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                stringContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                request.Content = stringContent;
+                request.Headers.Add("x-goog-api-key", _apiKey);
+
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    string errorContent = await response.Content.ReadAsStringAsync();
+                    return BuildGeminiErrorMessage((int)response.StatusCode, errorContent);
+                }
+
+                string jsonResponse = await response.Content.ReadAsStringAsync();
+
+                using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
+                {
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+                    {
+                        var firstCandidate = candidates[0];
+                        if (firstCandidate.TryGetProperty("content", out var contentProp) &&
+                            contentProp.TryGetProperty("parts", out var parts) && parts.GetArrayLength() > 0)
+                        {
+                            return parts[0].GetProperty("text").GetString() ?? "Asistandan boş içerik döndü.";
+                        }
+                    }
+                }
+
+                return "Yapay zekadan gelen JSON paketi anlamlı bir metne çözümlenemedi.";
+            }
+            catch (Exception ex)
+            {
+                return $"Yapay zeka servisiyle iletişim kurulurken teknik bir hata meydana geldi: {ex.Message}";
+            }
+        }
+
+        private bool HasValidApiKey()
+        {
+            return !string.IsNullOrWhiteSpace(_apiKey) &&
+                   !_apiKey.Equals("apikey", StringComparison.OrdinalIgnoreCase) &&
+                   !_apiKey.Equals("YOUR_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase) &&
+                   !_apiKey.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
+                   (_apiKey.StartsWith("AIza", StringComparison.Ordinal) ||
+                    _apiKey.StartsWith("AQ.", StringComparison.Ordinal));
+        }
+
         private static string BuildGeminiErrorMessage(int statusCode, string errorContent)
         {
             string message = TryReadGoogleErrorMessage(errorContent);
 
             if (statusCode == 400 || statusCode == 401 || statusCode == 403)
             {
-                return $"Gemini API isteği reddedildi ({statusCode}). API anahtarını ve Google AI Studio erişimini kontrol edin. Detay: {message}";
+                return $"Gemini API anahtarı geçerli değil veya bu projede yetkili değil ({statusCode}). Google AI Studio'dan yeni bir API key oluşturup appsettings.json içindeki Gemini:ApiKey alanına ekleyin. Detay: {message}";
             }
 
             if (statusCode == 404)
             {
-                return $"Gemini modeli bulunamadı ({statusCode}). Model adını kontrol edin. Detay: {message}";
+                return $"Gemini modeli bulunamadı ({statusCode}). appsettings.json içindeki Gemini:TextModel değerini kontrol edin. Detay: {message}";
             }
 
             return $"Gemini API şu an yanıt üretemedi ({statusCode}). Detay: {message}";
@@ -219,12 +211,17 @@ namespace MiniLms.Services
             }
             catch
             {
-                // Google hata JSON'u beklenen formatta değilse ham metni kısaltarak göster.
+                // Google hata cevabı JSON değilse ham metni kısaltarak göster.
             }
 
-            return string.IsNullOrWhiteSpace(errorContent)
-                ? "Detay alınamadı."
-                : errorContent.Length > 300 ? errorContent.Substring(0, 300) : errorContent;
+            if (string.IsNullOrWhiteSpace(errorContent))
+            {
+                return "Detay alınamadı.";
+            }
+
+            return errorContent.Length > 250
+                ? errorContent.Substring(0, 250)
+                : errorContent;
         }
     }
 }

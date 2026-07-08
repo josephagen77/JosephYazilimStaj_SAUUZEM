@@ -2,13 +2,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using MiniLms.Interfaces;
+using MiniLms.Models.Enums;
 using MiniLms.ViewModels;
 using System;
 using System.Threading.Tasks;
 
 namespace MiniLms.Controllers
 {
-    [Authorize(Roles = "Teacher")]
+    [Authorize(Policy = UserPolicies.TeacherOnly)]
     public class StudentController : Controller
     {
         private readonly IStudentService _studentService;

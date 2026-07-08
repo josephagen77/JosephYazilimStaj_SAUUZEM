@@ -4,139 +4,127 @@
     ViewData["Title"] = Model.Title + " - Ders Detayları";
 }
 
-<div class="container mt-4">
-    <!-- 1. ÜST ALAN: Breadcrumb ve Kurs Başlığı -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a asp-controller="Course" asp-action="Index">Kurslar</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
-                </ol>
-            </nav>
+<div>
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <strong>Başarılı!</strong> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null || TempData["Error"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <strong>Hata:</strong> @(TempData["ErrorMessage"] ?? TempData["Error"])
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+        </div>
+    }
 
-            <div class="p-5 bg-dark text-white rounded shadow-sm">
-                <h1 class="display-4 fw-bold">@Model.Title</h1>
-                <p class="lead mb-0">Kurs Kodu: <span class="badge bg-primary">@Model.CourseCode</span></p>
+    <section class="page-hero">
+        <div class="d-flex align-items-center gap-3">
+            <span class="hero-icon"><i class="bi bi-journal-richtext"></i></span>
+            <div>
+                <h1 class="page-title">@Model.Title</h1>
+                <p class="page-subtitle">@Model.Description</p>
             </div>
         </div>
-    </div>
+        <span class="badge bg-light text-primary border">@Model.CourseCode</span>
+    </section>
 
     <div class="row">
-        <!-- 2. SOL SÜTUN: Haftalık Ders Müfredatı (Accordion) -->
-        <div class="col-md-8">
-            <h3 class="mb-4">📚 Haftalık Ders Müfredatı</h3>
-
-            <!-- Seçilen Dokümanın Özeti -->
-            <div class="card shadow-sm border-info mb-4">
-                <div class="card-header bg-info text-white fw-bold">
-                    📝 Seçilen Doküman Özeti
+        <div class="col-lg-7 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-calendar3-week text-primary"></i> Haftalık Ders İçerikleri</h5>
                 </div>
                 <div class="card-body">
-                    <h6 id="docSummaryTitle" class="fw-semibold text-dark mb-2">Henüz doküman seçilmedi</h6>
-                    <p id="docSummaryText" class="text-muted small mb-0" style="white-space: pre-line; line-height: 1.55;">
-                        Soru kaynağı alanından bir doküman seçtiğinizde özeti burada gösterilir.
-                    </p>
-                </div>
-            </div>
-
-            @if (Model.Lessons != null && Model.Lessons.Any())
-            {
-                <div class="accordion" id="lessonsAccordion">
-                    @foreach (var lesson in Model.Lessons.OrderBy(l => l.WeekNumber))
+                    @if (Model.Lessons != null && Model.Lessons.Any(l => l.Title != "Yüklenen Dokümanlar"))
                     {
-                        <div class="accordion-item mb-2 shadow-sm">
-                            <h2 class="accordion-header" id="heading-@lesson.Id">
-                                <button class="accordion-button collapsed fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-@lesson.Id" aria-expanded="false" aria-controls="collapse-@lesson.Id">
-                                    ⏱️ @lesson.WeekNumber. Hafta: @lesson.Title
-                                </button>
-                            </h2>
-                            <div id="collapse-@lesson.Id" class="accordion-collapse collapse" aria-labelledby="heading-@lesson.Id" data-bs-parent="#lessonsAccordion">
-                                <div class="accordion-body bg-light">
-
-                                    @* image_6c56e7.png hatasını çözen 'lesson.Contents' döngüsü *@
-                                    @if (lesson.Contents != null && lesson.Contents.Any())
-                                    {
-                                        foreach (var content in lesson.Contents.OrderBy(c => c.Order))
-                                        {
-                                            <div class="p-3 mb-2 bg-white rounded border-start border-primary border-3 shadow-sm">
-                                                <h6 class="fw-bold text-primary">@content.Title</h6>
-                                                <p class="mb-0 text-secondary" style="white-space: pre-line;">
-                                                    @(!string.IsNullOrEmpty(content.Body) ? content.Body : content.Text)
-                                                </p>
-                                                @if (!string.IsNullOrEmpty(content.ResourceUrl))
+                        <div class="accordion" id="lessonsAccordion">
+                            @foreach (var lesson in Model.Lessons.Where(l => l.Title != "Yüklenen Dokümanlar").OrderBy(l => l.WeekNumber))
+                            {
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="heading-@lesson.Id">
+                                        <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-@lesson.Id">
+                                            Hafta @lesson.WeekNumber: @lesson.Title
+                                        </button>
+                                    </h2>
+                                    <div id="collapse-@lesson.Id" class="accordion-collapse collapse" data-bs-parent="#lessonsAccordion">
+                                        <div class="accordion-body bg-white">
+                                            @if (lesson.Contents != null && lesson.Contents.Any())
+                                            {
+                                                @foreach (var content in lesson.Contents.OrderBy(c => c.Order))
                                                 {
-                                                    <div class="mt-2">
-                                                        <a href="@content.ResourceUrl" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                                            🔗 Ek Kaynağı Görüntüle
-                                                        </a>
+                                                    <div class="content-strip mb-2">
+                                                        <h6 class="fw-bold text-dark mb-1">@content.Title</h6>
+                                                        <p class="small text-muted mb-0">@content.Text</p>
                                                     </div>
                                                 }
-                                            </div>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <p class="text-muted mb-0 small"><em>Bu haftaya ait detaylı içerik henüz yüklenmemiştir.</em></p>
-                                    }
+                                            }
+                                            else
+                                            {
+                                                <p class="text-muted small mb-0">Bu haftaya ait henüz alt içerik eklenmemiş.</p>
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5 text-muted">
+                            <p class="mb-0">Bu kursa ait henüz resmi haftalık müfredat konusu eklenmemiştir.</p>
                         </div>
                     }
                 </div>
-            }
-            else
-            {
-                <div class="alert alert-info shadow-sm">
-                    Bu kursa ait henüz haftalık ders içeriği eklenmemiştir.
-                </div>
-            }
+            </div>
         </div>
 
-        <!-- 3. SAĞ SÜTUN: Kurs Bilgileri, Doküman Yükleme ve Listeleme -->
-        <div class="col-md-4">
-            <!-- Kart A: Kurs Hakkında -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-secondary text-white fw-bold">
-                    ℹ️ Kurs Hakkında
+        <div class="col-lg-5">
+            <div class="card ai-panel mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-cpu text-primary"></i> Dersin Yapay Zeka Asistanı</h5>
+                    <span class="badge bg-light text-primary border fw-bold">Gemini + Qdrant</span>
                 </div>
                 <div class="card-body">
-                    <p class="card-text text-dark">@Model.Description</p>
-                    <hr />
-                    <div class="d-flex justify-content-between text-muted small">
-                        <span>Sistem Durumu:</span>
-                        <strong><span class="text-success">●</span> Aktif</strong>
+                    <p class="small text-muted mb-3">
+                        Yüklenen kurumsal dökümanlar ve haftalık içerikler üzerinde anlamsal arama yapılarak doğrudan ders kaynaklarına dayalı güvenli cevap üretilir.
+                    </p>
+
+                    <div id="aiResponseContainer" class="p-3 mb-3 border border-2 rounded bg-light d-none">
+                        <span class="fw-bold text-primary d-block mb-1"><i class="bi bi-chat-square-text"></i> Asistanın Cevabı:</span>
+                        <div id="aiResponseText" class="small text-dark" style="white-space: pre-wrap; line-height: 1.5;"></div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Kart B: Doküman Yükleme Formu -->
-            <div class="card shadow-sm border-primary mb-4">
-                <div class="card-header bg-primary text-white fw-bold">
-                    📁 RAG İçin Doküman Yükle
-                </div>
-                <div class="card-body">
-                    <p class="text-muted small">Yükleyeceğiniz PDF veya TXT dökümanları sistem tarafından okunarak yapay zeka RAG asistanının hafızasına (Qdrant) aktarılır.</p>
-
-                    <form asp-controller="Course" asp-action="UploadDocument" method="post" enctype="multipart/form-data">
+                    <form id="askAiForm">
                         <input type="hidden" name="courseId" value="@Model.Id" />
 
                         <div class="mb-3">
-                            <label class="form-label small fw-bold">Dosya Seç (PDF, TXT):</label>
-                            <input type="file" name="file" class="form-control form-control-sm" required accept=".pdf,.txt" />
+                            <label class="form-label small fw-bold text-secondary">Kaynak Filtresi</label>
+                            <select class="form-select form-select-sm" name="documentId" id="documentIdSelect">
+                                <option value="">Tüm Ders Kaynakları ve Dokümanlar</option>
+                                @if (Model.Documents != null)
+                                {
+                                    foreach (var doc in Model.Documents)
+                                    {
+                                        <option value="@doc.Id">@doc.FileName</option>
+                                    }
+                                }
+                            </select>
                         </div>
 
-                        <button type="submit" class="btn btn-sm btn-success w-100">
-                            📤 Dokümanı Yükle & İşle
-                        </button>
+                        <div class="input-group">
+                            <input type="text" name="question" id="aiQuestionInput" class="form-control" placeholder="Ders içeriklerine dair soru sorun..." required />
+                            <button type="submit" id="btnAskAi" class="btn btn-primary fw-bold"><i class="bi bi-send"></i> Sor</button>
+                        </div>
                     </form>
                 </div>
             </div>
 
-            <!-- Kart C: Yüklenen Dokümanların Listesi -->
-            <div class="card shadow-sm border-secondary mb-4">
-                <div class="card-header bg-secondary text-white fw-bold">
-                    📋 Derse Ait Kaynak Dokümanlar
+            <div class="card mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text text-primary"></i> Ek Ders Dokümanları</h5>
                 </div>
                 <div class="card-body p-0">
                     @if (Model.Documents != null && Model.Documents.Any())
@@ -144,77 +132,119 @@
                         <div class="list-group list-group-flush">
                             @foreach (var doc in Model.Documents)
                             {
-                                <div class="list-group-item d-flex align-items-center justify-content-between p-3">
-                                    <div class="d-flex align-items-center" style="max-width: 75%;">
-                                        <span class="fs-4 me-2">📄</span>
-                                        <div class="text-truncate">
-                                            <h6 class="mb-0 text-dark fw-semibold text-truncate" title="@doc.FileName">@doc.FileName</h6>
-                                            <small class="text-muted">ID: @doc.Id</small>
-                                        </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                    <div class="text-truncate me-2" style="max-width: 60%;">
+                                        <span class="fw-bold text-dark small d-block text-truncate">@doc.FileName</span>
+                                        <small class="text-muted" style="font-size: 11px;">⏱️ @doc.UploadedDate.ToString("dd.MM.yyyy HH:mm")</small>
                                     </div>
-                                    @if (!string.IsNullOrEmpty(doc.FilePath))
-                                    {
-                                        <a href="~/uploads/@System.IO.Path.GetFileName(doc.FilePath)" target="_blank" class="btn btn-sm btn-outline-primary">
-                                            👁️ Aç
-                                        </a>
-                                    }
+                                    <div class="d-flex gap-1">
+                                        <a href="@doc.FilePath" target="_blank" class="btn btn-xs btn-outline-primary btn-sm" title="Aç"><i class="bi bi-box-arrow-up-right"></i></a>
+                                        <button type="button" data-id="@doc.Id" class="btn btn-xs btn-outline-success btn-sm btn-summary">Özetle</button>
+                                        <button type="button" data-id="@doc.Id" class="btn btn-xs btn-outline-primary btn-sm btn-quiz">Quiz</button>
+
+                                        @if (User.IsInRole("Teacher"))
+                                        {
+                                            <form asp-action="DeleteDocument" method="post" class="d-inline" onsubmit="return confirm('Bu dökümanı, veritabanı parçalarını ve yapay zeka vektör bellek kayıtlarını silmek istediğinize emin misiniz?');">
+                                                <input type="hidden" name="id" value="@doc.Id" />
+                                                <input type="hidden" name="courseId" value="@Model.Id" />
+                                                <button type="submit" class="btn btn-xs btn-danger btn-sm" title="Sil"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        }
+                                    </div>
                                 </div>
                             }
                         </div>
                     }
                     else
                     {
-                        <div class="p-3 text-center text-muted small">
-                            <em>Bu kursa ait yüklenmiş bir kaynak doküman bulunmamaktadır.</em>
-                        </div>
+                        <p class="text-muted text-center py-4 mb-0 small">Bu kursa henüz harici döküman yüklenmemiş.</p>
                     }
                 </div>
             </div>
+
+            @if (User.IsInRole("Teacher"))
+            {
+                <div class="card mb-4">
+                    <div class="card-header bg-white fw-bold py-3">
+                        <h5 class="mb-0 fw-bold"><i class="bi bi-cloud-arrow-up text-primary"></i> Bilgi Havuzuna Doküman Ekle</h5>
+                    </div>
+                    <div class="card-body">
+                        <form asp-action="UploadDocument" method="post" enctype="multipart/form-data">
+                            <input type="hidden" name="courseId" value="@Model.Id" />
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Sistem otomatik olarak metin analizi yapıp indeksleme yapacaktır. (.pdf, .txt)</label>
+                                <input type="file" name="file" class="form-control form-control-sm" accept=".pdf,.txt" required />
+                            </div>
+                            <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold shadow-sm">Yükle ve İndeksle</button>
+                        </form>
+                    </div>
+                </div>
+            }
         </div>
     </div>
+</div>
 
-    <!-- 4. ALT ALAN: RAG Tabanlı Yapay Zeka Asistanı Paneli -->
-    <div class="row mt-4 mb-5">
-        <div class="col-md-12">
-            <div class="card border-primary shadow-sm">
-                <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between">
-                    <h5 class="mb-0">🧠 Dersin Yapay Zeka Asistanı (RAG)</h5>
-                    <span class="badge bg-light text-primary">Gemini + Qdrant Active</span>
+<div class="modal fade" id="quizModal" tabindex="-1" aria-labelledby="quizModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content quiz-modal">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold" id="quizModalLabel">Doküman Quiz</h5>
+                    <small class="text-muted" id="quizProgressText">Hazırlanıyor...</small>
                 </div>
-                <div class="card-body p-4">
-                    <p class="text-muted small">Bu derse ait dökümanlar ve haftalık içerikler üzerinde anlamsal arama yapılarak doğrudan ders kaynaklarına dayalı güvenli cevap üretilir.</p>
-
-                    <!-- Asistan Yanıt Kutusu -->
-                    <div id="aiResponseBox" class="p-3 mb-3 bg-light border rounded d-none" style="max-height: 350px; overflow-y: auto;">
-                        <strong>🤖 Asistanın Cevabı:</strong>
-                        <p id="aiResponseText" class="mt-2 text-dark" style="white-space: pre-line; line-height: 1.6;"></p>
-                    </div>
-
-                    <!-- Kaynak Seçimi -->
-                    <div class="mb-3">
-                        <label for="ragDocumentId" class="form-label small fw-bold">Soru kaynağı:</label>
-                        <select id="ragDocumentId" class="form-select">
-                            <option value="">Tüm ders kaynakları</option>
-                            @if (Model.Documents != null && Model.Documents.Any())
-                            {
-                                foreach (var doc in Model.Documents.OrderByDescending(d => d.UploadedDate))
-                                {
-                                    <option value="@doc.Id">@doc.FileName</option>
-                                }
-                            }
-                        </select>
-                    </div>
-
-                    <!-- Soru Formu Girişi -->
-                    <div class="input-group input-group-lg">
-                        <input type="hidden" id="ragCourseId" value="@Model.Id" />
-                        <input type="text" id="studentQuestion" class="form-control" placeholder="Bu dersle ilgili merak ettiğiniz bir şeyi sorun... (Örn: 3. hafta konusu nedir?)" />
-                        <button class="btn btn-primary d-flex align-items-center" type="button" id="btnAskAi">
-                            <span id="btnText">Soruyu Sor</span>
-                            <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
-                        </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+            </div>
+            <div class="modal-body">
+                <div id="quizSetup" class="quiz-setup mb-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-bold text-secondary">Soru Sayısı</label>
+                            <select class="form-select form-select-sm" id="quizQuestionCount">
+                                <option value="3">3 soru</option>
+                                <option value="5" selected>5 soru</option>
+                                <option value="10">10 soru</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-5">
+                            <label class="form-label small fw-bold text-secondary">Zorluk</label>
+                            <select class="form-select form-select-sm" id="quizDifficulty">
+                                <option value="mixed" selected>Karma</option>
+                                <option value="easy">Kolay</option>
+                                <option value="medium">Orta</option>
+                                <option value="hard">Zor</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <button type="button" class="btn btn-primary btn-sm w-100" id="quizStartBtn">Başlat</button>
+                        </div>
                     </div>
                 </div>
+
+                <div class="progress quiz-progress mb-3" role="progressbar" aria-label="Quiz ilerleme">
+                    <div class="progress-bar" id="quizProgressBar" style="width: 0%"></div>
+                </div>
+
+                <div id="quizLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-3 mb-0">Quiz hazırlanıyor...</p>
+                </div>
+
+                <div id="quizQuestionArea" class="d-none">
+                    <div class="quiz-meta mb-3" id="quizMeta"></div>
+                    <h5 class="quiz-question" id="quizQuestionText"></h5>
+                    <div id="quizOptions" class="quiz-options"></div>
+                    <div id="quizFeedback" class="quiz-feedback d-none"></div>
+                </div>
+
+                <div id="quizResultArea" class="d-none text-center py-4">
+                    <div class="quiz-score" id="quizScoreText"></div>
+                    <p class="text-muted mb-3" id="quizScoreDetail"></p>
+                    <div id="quizReview" class="text-start"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Kapat</button>
+                <button type="button" class="btn btn-primary" id="quizNextBtn" disabled>Sonraki</button>
             </div>
         </div>
     </div>
@@ -224,84 +254,249 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function () {
-        function loadDocumentSummary() {
-        var courseIdVal = $("#ragCourseId").val();
-        var documentIdVal = $("#ragDocumentId").val();
-        var selectedText = $("#ragDocumentId option:selected").text();
+        var quizState = {
+        questions: [],
+        currentIndex: 0,
+        answers: [],
+        selectedIndex: null,
+        documentId: null
+        };
+        var quizModal = new bootstrap.Modal(document.getElementById("quizModal"));
 
-        if (!documentIdVal) {
-        $("#docSummaryTitle").text("Tüm ders kaynakları");
-        $("#docSummaryText").removeClass("text-danger").addClass("text-muted").text("Belirli bir doküman seçtiğinizde özeti burada gösterilir.");
-        return;
-        }
+        // 🎯 1. RAG Yapay Zeka Soru Sorma AJAX Akışı
+        $("#askAiForm").submit(function (e) {
+        e.preventDefault();
+        var btn = $("#btnAskAi");
+        var container = $("#aiResponseContainer");
+        var txt = $("#aiResponseText");
 
-        $("#docSummaryTitle").text(selectedText);
-        $("#docSummaryText").removeClass("text-danger").addClass("text-muted").text("Doküman özeti hazırlanıyor...");
-
-        $.ajax({
-        url: '/Course/DocumentSummary',
-        type: 'GET',
-        data: {
-        courseId: courseIdVal,
-        documentId: documentIdVal
-        },
-        success: function (data) {
-        if (data.success) {
-        $("#docSummaryText").removeClass("text-danger text-muted").addClass("text-dark").text(data.response);
-        } else {
-        $("#docSummaryText").removeClass("text-dark text-muted").addClass("text-danger").text(data.response);
-        }
-        },
-        error: function () {
-        $("#docSummaryText").removeClass("text-dark text-muted").addClass("text-danger").text("Doküman özeti alınırken teknik bir hata oluştu.");
-        }
-        });
-        }
-
-        $("#ragDocumentId").change(loadDocumentSummary);
-        loadDocumentSummary();
-
-        $("#btnAskAi").click(function () {
-        var questionText = $("#studentQuestion").val().trim();
-        var courseIdVal = $("#ragCourseId").val();
-        var documentIdVal = $("#ragDocumentId").val();
-
-        if (questionText === "") {
-        alert("Lütfen boş bir soru sormayın.");
-        return;
-        }
-
-        $("#btnAskAi").prop("disabled", true);
-        $("#btnText").text("Ders İçerikleri Taranıyor...");
-        $("#btnSpinner").removeClass("d-none");
-        $("#aiResponseBox").removeClass("d-none");
-        $("#aiResponseText").html("<em class='text-muted'>Vektör tabanlı veritabanı (Qdrant) taranıyor ve Gemini yapay zeka yanıtı hazırlanıyor... Lütfen bekleyin.</em>");
+        btn.prop("disabled", true).text("Analiz Ediliyor...");
+        container.removeClass("d-none");
+        txt.html("<span class='text-muted italic'>Yapay zeka asistanı bağlamsal dökümanları tarıyor ve yanıt hazırlıyor, lütfen bekleyin...</span>");
 
         $.ajax({
-        url: '/Course/AskAi',
+        url: '@Url.Action("AskAi", "Course")',
         type: 'POST',
-        data: {
-        courseId: courseIdVal,
-        question: questionText,
-        documentId: documentIdVal
-        },
+        data: $(this).serialize(),
         success: function (data) {
         if (data.success) {
-        $("#aiResponseText").removeClass("text-danger").addClass("text-dark").text(data.response);
+        txt.text(data.response);
         } else {
-        $("#aiResponseText").removeClass("text-dark").addClass("text-danger").text(data.response);
+        txt.html("<span class='text-danger fw-bold'>⚠️ Başarısız: " + data.response + "</span>");
         }
         },
         error: function () {
-        $("#aiResponseText").removeClass("text-dark").addClass("text-danger").text("Sistemle iletişim kurulurken teknik bir hata oluştu.");
+        txt.html("<span class='text-danger'>Ağ hatası! Yapay zeka servisine erişilemedi.</span>");
         },
         complete: function () {
-        $("#btnAskAi").prop("disabled", false);
-        $("#btnText").text("Soruyu Sor");
-        $("#btnSpinner").addClass("d-none");
+        btn.prop("disabled", false).text("Soruyu Sor");
         }
         });
         });
+
+        // 🎯 2. Tek Tıkla Doküman Özetleme AJAX Akışı
+        $(".btn-summary").click(function () {
+        var docId = $(this).data("id");
+        var courseId = '@Model.Id';
+        var container = $("#aiResponseContainer");
+        var txt = $("#aiResponseText");
+
+        container.removeClass("d-none");
+        // Ekranı akıcı şekilde asistan paneline kaydırır
+        $('html, body').animate({ scrollTop: container.offset().top - 100 }, 400);
+        txt.html("<span class='text-muted italic'>Doküman sayfaları taranıyor ve yapay zeka tarafından özet çıkartılıyor...</span>");
+
+        $.ajax({
+        url: '@Url.Action("DocumentSummary", "Course")',
+        type: 'GET',
+        data: { courseId: courseId, documentId: docId },
+        success: function (data) {
+        if (data.success) {
+        txt.text(data.response);
+        } else {
+        txt.html("<span class='text-danger fw-bold'>⚠️ " + data.response + "</span>");
+        }
+        },
+        error: function () {
+        txt.html("<span class='text-danger'>Özet çıkarılırken teknik bir iletişim hatası meydana geldi.</span>");
+        }
+        });
+        });
+
+        // 🎯 3. Dokümandan Etkileşimli Quiz Üretme Akışı
+        $(".btn-quiz").click(function () {
+        var docId = $(this).data("id");
+        var courseId = '@Model.Id';
+        var btn = $(this);
+
+        resetQuizModal();
+        quizState.documentId = docId;
+        quizModal.show();
+        });
+
+        $("#quizStartBtn").click(function () {
+        loadQuiz();
+        });
+
+        $("#quizNextBtn").click(function () {
+        if (quizState.selectedIndex === null) {
+        return;
+        }
+
+        quizState.answers[quizState.currentIndex] = quizState.selectedIndex;
+
+        if (quizState.currentIndex >= quizState.questions.length - 1) {
+        renderQuizResult();
+        return;
+        }
+
+        quizState.currentIndex++;
+        renderQuizQuestion();
+        });
+
+        function resetQuizModal() {
+        quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: quizState.documentId };
+        $("#quizModalLabel").text("Doküman Quiz");
+        $("#quizProgressText").text("Ayarları seç");
+        $("#quizProgressBar").css("width", "0%");
+        $("#quizSetup").removeClass("d-none");
+        $("#quizLoading").addClass("d-none");
+        $("#quizQuestionArea").addClass("d-none");
+        $("#quizResultArea").addClass("d-none");
+        $("#quizFeedback").addClass("d-none").empty();
+        $("#quizOptions").empty();
+        $("#quizNextBtn").prop("disabled", true).text("Sonraki").removeClass("btn-success").addClass("btn-primary");
+        }
+
+        function loadQuiz() {
+        var courseId = '@Model.Id';
+        var questionCount = $("#quizQuestionCount").val();
+        var difficulty = $("#quizDifficulty").val();
+
+        $("#quizSetup").addClass("d-none");
+        $("#quizLoading").removeClass("d-none");
+        $("#quizProgressText").text("Hazırlanıyor...");
+        $("#quizStartBtn").prop("disabled", true);
+
+        $.ajax({
+        url: '@Url.Action("DocumentQuizSession", "Course")',
+        type: 'GET',
+        data: { courseId: courseId, documentId: quizState.documentId, questionCount: questionCount, difficulty: difficulty },
+        success: function (data) {
+        if (data.success && data.questions && data.questions.length > 0) {
+        $("#quizModalLabel").text(data.title || "Doküman Quiz");
+        quizState.questions = data.questions;
+        quizState.answers = new Array(data.questions.length).fill(null);
+        quizState.currentIndex = 0;
+        renderQuizQuestion();
+        } else {
+        showQuizError(data.response || "Quiz hazırlanamadı.");
+        }
+        },
+        error: function () {
+        showQuizError("Quiz oluşturulurken teknik bir iletişim hatası meydana geldi.");
+        },
+        complete: function () {
+        $("#quizStartBtn").prop("disabled", false);
+        }
+        });
+        }
+
+        function renderQuizQuestion() {
+        var question = quizState.questions[quizState.currentIndex];
+        quizState.selectedIndex = quizState.answers[quizState.currentIndex];
+        var progress = ((quizState.currentIndex + 1) / quizState.questions.length) * 100;
+
+        $("#quizLoading").addClass("d-none");
+        $("#quizResultArea").addClass("d-none");
+        $("#quizQuestionArea").removeClass("d-none");
+        $("#quizProgressText").text("Soru " + (quizState.currentIndex + 1) + " / " + quizState.questions.length);
+        $("#quizProgressBar").css("width", progress + "%");
+        $("#quizMeta").html(
+        "<span class='quiz-pill'>" + escapeHtml(question.difficulty || "Orta") + "</span>" +
+        "<span class='quiz-pill'>" + escapeHtml(question.bloomLevel || "Anlama") + "</span>" +
+        "<span class='quiz-pill muted'>" + escapeHtml(question.topic || "Doküman içeriği") + "</span>"
+        );
+        $("#quizQuestionText").text(question.question);
+        $("#quizFeedback").addClass("d-none").empty();
+        $("#quizNextBtn")
+        .prop("disabled", quizState.selectedIndex === null)
+        .text(quizState.currentIndex === quizState.questions.length - 1 ? "Bitir" : "Sonraki")
+        .removeClass("btn-success")
+        .addClass("btn-primary");
+
+        var optionsHtml = "";
+        question.options.forEach(function (option, index) {
+        var selectedClass = quizState.selectedIndex === index ? " selected" : "";
+        optionsHtml += "<button type='button' class='quiz-option" + selectedClass + "' data-index='" + index + "'><span>" + String.fromCharCode(65 + index) + "</span><strong>" + escapeHtml(option) + "</strong></button>";
+        });
+        $("#quizOptions").html(optionsHtml);
+        }
+
+        $(document).on("click", ".quiz-option", function () {
+        quizState.selectedIndex = parseInt($(this).data("index"));
+        $(".quiz-option").removeClass("selected");
+        $(this).addClass("selected");
+        $("#quizNextBtn").prop("disabled", false);
+        });
+
+        function renderQuizResult() {
+        var score = 0;
+        var reviewHtml = "";
+
+        quizState.questions.forEach(function (question, index) {
+        var userAnswer = quizState.answers[index];
+        var isCorrect = userAnswer === question.correctIndex;
+        if (isCorrect) {
+        score++;
+        }
+
+        reviewHtml += "<div class='quiz-review-item " + (isCorrect ? "correct" : "incorrect") + "'>";
+        reviewHtml += "<strong>" + (index + 1) + ". " + escapeHtml(question.question) + "</strong>";
+        reviewHtml += "<div class='quiz-review-meta'><span>" + escapeHtml(question.difficulty || "Orta") + "</span><span>" + escapeHtml(question.bloomLevel || "Anlama") + "</span><span>" + escapeHtml(question.topic || "Doküman içeriği") + "</span></div>";
+        reviewHtml += "<p class='mb-1'>Senin cevabın: " + answerLabel(question, userAnswer) + "</p>";
+        reviewHtml += "<p class='mb-1'>Doğru cevap: " + answerLabel(question, question.correctIndex) + "</p>";
+        reviewHtml += "<small>" + escapeHtml(question.explanation || "") + "</small>";
+        if (question.whyWrong && question.whyWrong[userAnswer] && userAnswer !== question.correctIndex) {
+        reviewHtml += "<small class='d-block mt-1 text-muted'>Seçimin neden yanlış: " + escapeHtml(question.whyWrong[userAnswer]) + "</small>";
+        }
+        if (question.sourceHint) {
+        reviewHtml += "<small class='d-block mt-1 text-muted'>Kaynak ipucu: " + escapeHtml(question.sourceHint) + "</small>";
+        }
+        reviewHtml += "</div>";
+        });
+
+        $("#quizQuestionArea").addClass("d-none");
+        $("#quizResultArea").removeClass("d-none");
+        $("#quizProgressText").text("Tamamlandı");
+        $("#quizProgressBar").css("width", "100%");
+        $("#quizScoreText").text(score + " / " + quizState.questions.length);
+        $("#quizScoreDetail").text("Quiz tamamlandı. Aşağıda cevaplarını kontrol edebilirsin.");
+        $("#quizReview").html(reviewHtml);
+        $("#quizNextBtn").prop("disabled", true).text("Tamamlandı").removeClass("btn-primary").addClass("btn-success");
+        }
+
+        function showQuizError(message) {
+        $("#quizLoading").addClass("d-none");
+        $("#quizQuestionArea").addClass("d-none");
+        $("#quizResultArea").removeClass("d-none");
+        $("#quizScoreText").text("Quiz hazırlanamadı");
+        $("#quizScoreDetail").text(message);
+        $("#quizReview").empty();
+        $("#quizNextBtn").prop("disabled", true);
+        }
+
+        function answerLabel(question, index) {
+        if (index === null || index === undefined || index < 0 || index >= question.options.length) {
+        return "Boş";
+        }
+
+        return String.fromCharCode(65 + index) + ") " + escapeHtml(question.options[index]);
+        }
+
+        function escapeHtml(value) {
+        return $("<div>").text(value || "").html();
+        }
         });
     </script>
 }

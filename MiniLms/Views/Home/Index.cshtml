@@ -1,8 +1,58 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@{
+    ViewData["Title"] = "Ana Sayfa";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<section class="page-hero">
+    <div class="d-flex align-items-center gap-3">
+        <span class="hero-icon"><i class="bi bi-grid-1x2-fill"></i></span>
+        <div>
+            <h1 class="page-title">MiniLms Kontrol Paneli</h1>
+            <p class="page-subtitle">Dersleri, öğrencileri, kayıtları ve ders kaynaklarını tek yerden yönetin.</p>
+        </div>
+    </div>
+    <a class="btn btn-primary" asp-controller="Course" asp-action="Index">
+        <i class="bi bi-book"></i> Derslere Git
+    </a>
+</section>
+
+<div class="metric-grid mb-4">
+    <div class="metric-tile">
+        <i class="bi bi-book-half"></i>
+        <span class="metric-value">Ders</span>
+        <span class="metric-label">Müfredat ve kaynak yönetimi</span>
+    </div>
+    <div class="metric-tile">
+        <i class="bi bi-people-fill"></i>
+        <span class="metric-value">Öğrenci</span>
+        <span class="metric-label">Profil ve kayıt takibi</span>
+    </div>
+    <div class="metric-tile">
+        <i class="bi bi-cpu-fill"></i>
+        <span class="metric-value">RAG</span>
+        <span class="metric-label">Doküman tabanlı ders asistanı</span>
+    </div>
+</div>
+
+<div class="quick-actions">
+    <a class="quick-action" asp-controller="Course" asp-action="Index">
+        <i class="bi bi-journal-text"></i>
+        <span>
+            <strong>Dersleri İncele</strong>
+            <span>Ders detayları, haftalık içerikler ve dokümanlar</span>
+        </span>
+    </a>
+    <a class="quick-action" asp-controller="Student" asp-action="Index">
+        <i class="bi bi-person-lines-fill"></i>
+        <span>
+            <strong>Öğrenciler</strong>
+            <span>Öğrenci kayıtlarını düzenleyin</span>
+        </span>
+    </a>
+    <a class="quick-action" asp-controller="Enrollment" asp-action="Index">
+        <i class="bi bi-clipboard-check"></i>
+        <span>
+            <strong>Ders Kayıtları</strong>
+            <span>Öğrenci ve ders eşleşmelerini takip edin</span>
+        </span>
+    </a>
 </div>

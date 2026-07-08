@@ -7,6 +7,7 @@ using MiniLms.Services;
 using MiniLms.Mappings;
 using MiniLms.Models;
 using MiniLms.Models.Enums;
+using MiniLms.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +30,18 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(UserPolicies.TeacherOnly, policy =>
+        policy.RequireRole(UserRoles.Teacher));
+
+    options.AddPolicy(UserPolicies.StudentOnly, policy =>
+        policy.RequireRole(UserRoles.Student));
+
+    options.AddPolicy(UserPolicies.TeacherOrStudent, policy =>
+        policy.RequireRole(UserRoles.Teacher, UserRoles.Student));
+});
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -79,6 +92,7 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

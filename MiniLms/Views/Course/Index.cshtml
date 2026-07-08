@@ -4,13 +4,26 @@
     ViewData["Title"] = "Ders Listesi";
 }
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="text-primary"><i class="bi bi-book-half"></i> Ders Listesi</h2>
-        <a asp-action="Create" class="btn btn-success"><i class="bi bi-plus-circle"></i> Yeni Ders Ekle</a>
-    </div>
+<div>
+    <section class="page-hero">
+        <div class="d-flex align-items-center gap-3">
+            <span class="hero-icon"><i class="bi bi-book-half"></i></span>
+            <div>
+                <h1 class="page-title">Ders Listesi</h1>
+                <p class="page-subtitle">Açılan dersleri, kredileri ve ders kaynaklarını yönetin.</p>
+            </div>
+        </div>
+        @if (User.IsInRole("Teacher"))
+        {
+            <a asp-action="Create" class="btn btn-success"><i class="bi bi-plus-circle"></i> Yeni Ders Ekle</a>
+        }
+        else if (User.IsInRole("Student"))
+        {
+            <a asp-controller="StudentCourses" asp-action="Index" class="btn btn-success"><i class="bi bi-journal-check"></i> Derslerim</a>
+        }
+    </section>
 
-    <div class="card shadow-sm">
+    <div class="card table-card">
         <div class="card-body p-0">
             <table class="table table-hover table-striped mb-0">
                 <thead class="table-dark">
@@ -40,9 +53,12 @@
                                 <td><span class="badge bg-secondary">@item.Credits AKTS</span></td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning text-white"><i class="bi bi-pencil-square"></i> Düzenle</a>
                                         <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-info text-white"><i class="bi bi-eye"></i> Detay</a>
-                                        <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger"><i class="bi bi-trash"></i> Sil</a>
+                                        @if (User.IsInRole("Teacher"))
+                                        {
+                                            <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning text-white"><i class="bi bi-pencil-square"></i> Düzenle</a>
+                                            <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger"><i class="bi bi-trash"></i> Sil</a>
+                                        }
                                     </div>
                                 </td>
                             </tr>

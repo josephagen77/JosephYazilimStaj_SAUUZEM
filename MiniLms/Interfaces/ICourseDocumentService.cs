@@ -20,5 +20,6 @@ namespace MiniLms.Interfaces
         Task DeleteDocumentAsync(int id);
         Task UploadDocumentAsync(int courseId, IFormFile file);
         Task<List<string>> GetDocumentTextChunksAsync(int documentId, int maxChunks = 5);
+        Task EnsureDocumentTopicLessonsAsync(int courseId);
     }
 }
