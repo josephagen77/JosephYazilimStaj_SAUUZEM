@@ -10,8 +10,8 @@ public class LessonContentViewModel
 
     public int LessonId { get; set; }
 
-    [Required]
-    [StringLength(100)]
+    [Required(ErrorMessage = "Başlık zorunludur.")]
+    [StringLength(100, ErrorMessage = "Başlık en fazla 100 karakter olabilir.")]
     public string Title { get; set; } = string.Empty;
 
     [Display(Name = "İçerik")]
@@ -23,7 +23,7 @@ public class LessonContentViewModel
     [Display(Name = "PDF Dosyası")]
     public IFormFile? File { get; set; }
 
-    [Required]
+    [Required(ErrorMessage = "İçerik türü seçimi zorunludur.")]
     public ContentType Type { get; set; }
 
     public int Order { get; set; }
