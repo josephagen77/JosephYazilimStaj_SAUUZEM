@@ -1,115 +1,36 @@
 # MiniLMS AI
 
-
-
 MiniLMS AI is an intelligent Learning Management System (LMS) built with ASP.NET Core MVC. The platform enables teachers to create and manage courses, lessons, and educational materials, while allowing students to enroll in courses and access learning content through a modern web interface.
 
 The project integrates Google Gemini AI and Qdrant Vector Database to provide AI-powered features such as document summarization, semantic search, and intelligent question answering. Course materials are automatically processed, converted into vector embeddings, and indexed for fast and context-aware information retrieval.
 
-The primary goal of this project is to demonstrate modern backend development practices by combining clean architecture principles, AI technologies, and vector search into a scalable educational platform.
+## System Architecture
 
-## Project Overview
+This project follows a standard **ASP.NET Core MVC Monolithic Architecture** with a logical N-tier separation of concerns to maintain code scalability and testability:
 
-MiniLMS AI is an intelligent Learning Management System developed with ASP.NET Core MVC.
+*   **Presentation Layer (Controllers & Views):** Manages the web interface, user routing, and data binding using Data Transfer Objects (ViewModels) to ensure data integrity.
+*   **Business Logic Layer (Services):** Contains the core orchestration logic (e.g., `CourseService`, `AiService`), isolating business rules from data access and presentation.
+*   **Data Access Layer (Repositories & Data):** Utilizes Entity Framework Core with SQL Server for relational data and implements the Repository Pattern (`GenericRepository`) for standardized data access.
+*   **AI & Vector Infrastructure:** Integrates Google Gemini for embeddings and text generation, alongside a local Qdrant Vector DB container for high-dimensional semantic search indexing.
 
-The system allows teachers to upload course materials while students can enroll in courses and interact with AI-powered course content.
-
-Instead of performing keyword searches, the application generates semantic embeddings using Google's Gemini Embedding API and stores them in Qdrant Vector Database, enabling semantic search and question answering.
 ## Features
 
-- Student Authentication
-- Teacher Authentication
-- Role-based Authorization
-- Course Management
-- Lesson Management
-- Lesson Content Management
-- Document Upload
-- AI-powered Content Summarization
-- Semantic Search
-- Vector Database Integration
-- Automatic Vector Indexing
-- Background Processing
-- Enrollment Management
+- Student & Teacher Authentication with Role-based Authorization
+- Course, Lesson, and Content Management
+- Document Upload & Background Processing
+- AI-powered Content Summarization & Semantic Search
+- Vector Database Integration & Automatic Indexing
 
-  ## Technologies
+## Technologies
 
-- ASP.NET Core MVC
-- Entity Framework Core
-- SQL Server
+- ASP.NET Core MVC & Entity Framework Core (SQL Server)
 - ASP.NET Identity
 - AutoMapper
-- Repository Pattern
-- Service Layer Pattern
-- Google Gemini API
-- Qdrant Vector Database
-- REST API
+- Repository & Service Layer Patterns
+- Google Gemini API & Qdrant Vector Database
 
-## Presentation (MVC)
-```
-├── Controllers
-├── Views
-├── ViewModels
-│
-Business Layer
-│
-├── Services
-├── Interfaces
-│
-Data Access Layer
-│
-├── Repositories
-├── Generic Repository
-├── Entity Framework Core
-│
-Database
-│
-SQL Server
-│
-AI Layer
-│
-Gemini API
-│
-Vector Layer
-│
-Qdrant
-```
-## MiniLMS
-```
-├── Controllers
-├── Data
-├── Interfaces
-├── Mappings
-├── Middlewares
-├── Models
-├── Repositories
-├── Services
-├── ViewModels
-├── Views
-├── Program.cs
-```
 ## Installation
 
 1. Clone repository
-```
-git clone ...
-```
-2. Install packages
-```
-dotnet restore
-```
-3. Update database
-```
-dotnet ef database update
-```
-4. Configure Gemini API Key
-
-User Secrets
-
-5. Run Qdrant
-
-Docker
-
-6. Start project
-```
-dotnet run
-```
+```bash
+git clone [https://github.com/josephagen77/JosephYazilimStaj_SAUUZEM.git](https://github.com/josephagen77/JosephYazilimStaj_SAUUZEM.git)
