@@ -86,8 +86,6 @@ namespace MiniLms.Controllers
         {
             try
             {
-                // 🎯 DÜZELTİLDİ: Servis metodu Task (void) döndüğü için try-catch bloğu ile sarmalandı.
-                // SQL, wwwroot ve Qdrant temizliği artık tek hattan güvenle tetikleniyor.
                 await _courseDocumentService.DeleteDocumentAsync(id);
                 TempData["SuccessMessage"] = "Döküman, SQL kayıtları ve yapay zeka bellek vektörleri başarıyla silindi.";
             }
@@ -96,12 +94,12 @@ namespace MiniLms.Controllers
                 TempData["ErrorMessage"] = $"Döküman silinirken teknik bir hata oluştu: {ex.Message}";
             }
 
-            // Silme işleminden sonra tekrar dersin detay sayfasına yönlendiriyoruz
             return RedirectToAction("Details", new { id = courseId });
         }
 
+        // 🎯 GÜNCELLENDİ: modelName eklendi
         [HttpPost]
-        public async Task<IActionResult> AskAi(int courseId, string question, int? documentId)
+        public async Task<IActionResult> AskAi(int courseId, string question, int? documentId, string? modelName)
         {
             if (string.IsNullOrEmpty(question))
             {
@@ -126,14 +124,12 @@ namespace MiniLms.Controllers
                     selectedDocumentPath = selectedDocument.FilePath;
                 }
 
-                // Adım A: Öğrencinin sorusunu Gemini API yardımıyla vektör dizisine çevirmeyi deniyoruz.
                 List<float>? questionVector = selectedDocumentPath == null
                     ? await _aiService.GetEmbeddingAsync(question)
                     : null;
 
                 if (questionVector != null && questionVector.Count > 0)
                 {
-                    // Adım B: Qdrant Vector DB üzerinde bu soruya en yakın/en alakalı 3 metin parçasını arıyoruz
                     relevantTexts = await _vectorDbService.SearchSimilarTextsAsync(
                         collectionName: "lesson_contents",
                         vectorData: questionVector,
@@ -168,12 +164,10 @@ namespace MiniLms.Controllers
                     return Json(new { success = false, response = emptyMessage });
                 }
 
-                // Adım C: Gelen kaynak metinleri tek bir "Context" (Bağlam) bloğu haline getiriyoruz
                 string context = relevantTexts.Count > 0
                     ? string.Join("\n\n", relevantTexts)
                     : "Bu kursa ait herhangi bir döküman veya ders içeriği bulunamadı.";
 
-                // Adım D: Gemini'a sınırlarını ve kurallarını çizen akıllı bir RAG Prompt'u hazırlıyoruz
                 string finalPrompt = $@"
                     Sen bu dersin yapay zeka asistanısın. Aşağıda sana bu dersin içeriğinden alınan kaynak metinler (Bağlam) verilmiştir.
                     Lütfen ÖĞRENCİNİN SORUSU'nu sadece ve sadece verilen BAĞLAM'a sadık kalarak, kendi yorumunu veya dışarıdan bilgi eklemeden, akademik ve net bir dilde cevapla.
@@ -189,8 +183,8 @@ namespace MiniLms.Controllers
                     {question}
                 ";
 
-                // Adım E: Prompt'u Gemini'a gönderip ders kaynaklarına göre filtrelenmiş cevabı alıyoruz
-                string aiResponse = await _aiService.SummarizeTextAsync(finalPrompt);
+                // 🎯 GÜNCELLENDİ: modelName servise iletiliyor
+                string aiResponse = await _aiService.SummarizeTextAsync(finalPrompt, modelName);
                 if (IsAiServiceError(aiResponse))
                 {
                     aiResponse = BuildLocalFallbackAnswer(relevantTexts);
@@ -204,8 +198,9 @@ namespace MiniLms.Controllers
             }
         }
 
+        // 🎯 GÜNCELLENDİ: modelName eklendi
         [HttpGet]
-        public async Task<IActionResult> DocumentSummary(int courseId, int documentId)
+        public async Task<IActionResult> DocumentSummary(int courseId, int documentId, string? modelName)
         {
             try
             {
@@ -233,7 +228,8 @@ namespace MiniLms.Controllers
                     {sourceText}
                 ";
 
-                string summary = await _aiService.SummarizeTextAsync(summaryPrompt);
+                // 🎯 GÜNCELLENDİ: modelName servise iletiliyor
+                string summary = await _aiService.SummarizeTextAsync(summaryPrompt, modelName);
                 if (IsAiServiceError(summary))
                 {
                     summary = BuildLocalDocumentSummary(document.FileName, documentTexts);
@@ -247,8 +243,9 @@ namespace MiniLms.Controllers
             }
         }
 
+        // 🎯 GÜNCELLENDİ: modelName eklendi
         [HttpGet]
-        public async Task<IActionResult> DocumentQuiz(int courseId, int documentId, int questionCount = 5)
+        public async Task<IActionResult> DocumentQuiz(int courseId, int documentId, int questionCount = 5, string? modelName = null)
         {
             try
             {
@@ -289,7 +286,8 @@ namespace MiniLms.Controllers
                     {sourceText}
                 ";
 
-                string quiz = await _aiService.SummarizeTextAsync(quizPrompt);
+                // 🎯 GÜNCELLENDİ: modelName servise iletiliyor
+                string quiz = await _aiService.SummarizeTextAsync(quizPrompt, modelName);
                 if (IsAiServiceError(quiz))
                 {
                     quiz = BuildLocalDocumentQuiz(document.FileName, documentTexts, questionCount);
@@ -303,8 +301,9 @@ namespace MiniLms.Controllers
             }
         }
 
+        // 🎯 GÜNCELLENDİ: modelName eklendi
         [HttpGet]
-        public async Task<IActionResult> DocumentQuizSession(int courseId, int documentId, int questionCount = 5, string difficulty = "mixed")
+        public async Task<IActionResult> DocumentQuizSession(int courseId, int documentId, int questionCount = 5, string difficulty = "mixed", string? modelName = null)
         {
             try
             {
@@ -323,7 +322,9 @@ namespace MiniLms.Controllers
                 }
 
                 difficulty = NormalizeDifficulty(difficulty);
-                var questions = await BuildInteractiveDocumentQuizAsync(document.FileName, documentTexts, questionCount, difficulty);
+
+                // 🎯 GÜNCELLENDİ: modelName yardımcı metoda (BuildInteractiveDocumentQuizAsync) iletiliyor
+                var questions = await BuildInteractiveDocumentQuizAsync(document.FileName, documentTexts, questionCount, difficulty, modelName);
                 if (questions.Count == 0)
                 {
                     return Json(new
@@ -427,7 +428,8 @@ Dokümandan kısa önizleme:
             return System.IO.Path.GetFileNameWithoutExtension(fileName).Replace('_', ' ').Replace('-', ' ');
         }
 
-        private async Task<List<QuizQuestionDto>> BuildInteractiveDocumentQuizAsync(string fileName, List<string> documentTexts, int questionCount, string difficulty)
+        // 🎯 GÜNCELLENDİ: modelName parametre olarak eklendi
+        private async Task<List<QuizQuestionDto>> BuildInteractiveDocumentQuizAsync(string fileName, List<string> documentTexts, int questionCount, string difficulty, string? modelName)
         {
             string sourceText = string.Join("\n\n", documentTexts);
             string difficultyInstruction = difficulty switch
@@ -474,7 +476,8 @@ Dokümandan kısa önizleme:
                 {sourceText}
             ";
 
-            string aiResponse = await _aiService.SummarizeTextAsync(jsonPrompt);
+            // 🎯 GÜNCELLENDİ: modelName servise iletiliyor
+            string aiResponse = await _aiService.SummarizeTextAsync(jsonPrompt, modelName);
             if (!IsAiServiceError(aiResponse))
             {
                 var parsed = TryParseQuizJson(aiResponse, questionCount);

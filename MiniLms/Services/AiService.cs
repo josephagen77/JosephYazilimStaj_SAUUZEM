@@ -13,29 +13,28 @@ namespace MiniLms.Services
     {
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
-        private readonly string _textModel;
+        private readonly string _defaultModel;
+        private readonly string _fallbackModel;
         private readonly string _embeddingModel;
 
         public AiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
-            // appsettings.json içerisindeki Gemini:ApiKey alanını okur
-            _apiKey = configuration["Gemini:ApiKey"] ?? "";
-            _textModel = configuration["Gemini:TextModel"] ?? "gemini-2.5-flash";
-            _embeddingModel = configuration["Gemini:EmbeddingModel"] ?? "gemini-embedding-001";
+            // Now reading from the updated, nested JSON structure
+            _apiKey = configuration["AiServices:Gemini:ApiKey"] ?? "";
+            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-2.5-flash";
+            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-1.5-flash";
+            _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "text-embedding-004";
         }
 
-        public async Task<string> GenerateQuizAsync(string text, int questionCount = 5)
+        public async Task<string> GenerateQuizAsync(string text, int questionCount = 5, string? modelName = null)
         {
             if (string.IsNullOrWhiteSpace(text)) return "Quiz üretilecek metin boş.";
 
             string prompt = $"Aşağıdaki metne dayanarak {questionCount} adet çoktan seçmeli soru hazırla:\n\n{text}";
-            return await SummarizeTextAsync(prompt);
+            return await SummarizeTextAsync(prompt, modelName);
         }
 
-        /// <summary>
-        /// Verilen metni 768 boyutlu bir vektör dizisine (Embedding) çevirir.
-        /// </summary>
         public async Task<List<float>?> GetEmbeddingAsync(string text)
         {
             if (string.IsNullOrEmpty(text)) return null;
@@ -49,23 +48,15 @@ namespace MiniLms.Services
             {
                 string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_embeddingModel}:embedContent";
 
-                var requestBody = new
-                {
-                    content = new { parts = new[] { new { text = text } } }
-                };
-
+                var requestBody = new { content = new { parts = new[] { new { text = text } } } };
                 string jsonPayload = JsonSerializer.Serialize(requestBody);
 
-                // Temiz ve izole bir HTTP Request paketi oluşturuluyor
                 var request = new HttpRequestMessage(HttpMethod.Post, url);
-
-                // İçerik tipi (Content-Type) manuel olarak ezilerek local çerezlerin sızması engelleniyor
                 var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 stringContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 request.Content = stringContent;
                 request.Headers.Add("x-goog-api-key", _apiKey);
 
-                // HttpClient fabrikasından gelebilecek tüm kirli header geçmişini sıfırlıyoruz
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -103,34 +94,29 @@ namespace MiniLms.Services
             }
         }
 
-        /// <summary>
-        /// Hazırlanan RAG promptunu Gemini modeline göndererek bağlamsal cevap veya özet üretir.
-        /// </summary>
-        public async Task<string> SummarizeTextAsync(string prompt)
+        public async Task<string> SummarizeTextAsync(string prompt, string? modelName = null)
         {
             if (string.IsNullOrEmpty(prompt)) return "Prompt içeriği boş olamaz.";
             if (!HasValidApiKey())
             {
-                return "Gemini API anahtarı geçerli değil. Google AI Studio'dan alınan API key'i appsettings.json içindeki Gemini:ApiKey alanına ekleyin.";
+                return "Gemini API anahtarı geçerli değil. Lütfen geçerli bir API anahtarı yapılandırın.";
             }
+
+            // DYNAMIC ROUTING LOGIC: Use passed model, fallback to default, or absolute fallback
+            string selectedModel = !string.IsNullOrWhiteSpace(modelName) ? modelName : _defaultModel;
 
             try
             {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_textModel}:generateContent";
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{selectedModel}:generateContent";
 
                 var requestBody = new
                 {
-                    contents = new[]
-                    {
-                        new { parts = new[] { new { text = prompt } } }
-                    }
+                    contents = new[] { new { parts = new[] { new { text = prompt } } } }
                 };
 
                 string jsonPayload = JsonSerializer.Serialize(requestBody);
 
-                // İstek gövdesi tamamen sterilize ediliyor
                 var request = new HttpRequestMessage(HttpMethod.Post, url);
-
                 var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 stringContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 request.Content = stringContent;
@@ -140,6 +126,13 @@ namespace MiniLms.Services
                 _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
                 HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+                // FALLBACK MECHANISM: If the selected model fails (e.g. deprecated 404), try the fallback model
+                if (!response.IsSuccessStatusCode && selectedModel != _fallbackModel && response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    Console.WriteLine($"[AI Service]: {selectedModel} başarısız oldu. {_fallbackModel} modeline geçiliyor...");
+                    return await SummarizeTextAsync(prompt, _fallbackModel);
+                }
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -171,10 +164,12 @@ namespace MiniLms.Services
             }
         }
 
+        // --- Helper Methods remain the same below this point ---
         private bool HasValidApiKey()
         {
             return !string.IsNullOrWhiteSpace(_apiKey) &&
                    !_apiKey.Equals("apikey", StringComparison.OrdinalIgnoreCase) &&
+                   !_apiKey.Equals("USE_USER_SECRETS", StringComparison.OrdinalIgnoreCase) &&
                    !_apiKey.Equals("YOUR_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase) &&
                    !_apiKey.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
                    (_apiKey.StartsWith("AIza", StringComparison.Ordinal) ||
@@ -187,14 +182,12 @@ namespace MiniLms.Services
 
             if (statusCode == 400 || statusCode == 401 || statusCode == 403)
             {
-                return $"Gemini API anahtarı geçerli değil veya bu projede yetkili değil ({statusCode}). Google AI Studio'dan yeni bir API key oluşturup appsettings.json içindeki Gemini:ApiKey alanına ekleyin. Detay: {message}";
+                return $"Gemini API anahtarı geçerli değil veya yetkisiz ({statusCode}). Detay: {message}";
             }
-
             if (statusCode == 404)
             {
-                return $"Gemini modeli bulunamadı ({statusCode}). appsettings.json içindeki Gemini:TextModel değerini kontrol edin. Detay: {message}";
+                return $"Gemini modeli bulunamadı ({statusCode}). Detay: {message}";
             }
-
             return $"Gemini API şu an yanıt üretemedi ({statusCode}). Detay: {message}";
         }
 
@@ -209,19 +202,10 @@ namespace MiniLms.Services
                     return message.GetString() ?? "Detay alınamadı.";
                 }
             }
-            catch
-            {
-                // Google hata cevabı JSON değilse ham metni kısaltarak göster.
-            }
+            catch { }
 
-            if (string.IsNullOrWhiteSpace(errorContent))
-            {
-                return "Detay alınamadı.";
-            }
-
-            return errorContent.Length > 250
-                ? errorContent.Substring(0, 250)
-                : errorContent;
+            if (string.IsNullOrWhiteSpace(errorContent)) return "Detay alınamadı.";
+            return errorContent.Length > 250 ? errorContent.Substring(0, 250) : errorContent;
         }
     }
 }
