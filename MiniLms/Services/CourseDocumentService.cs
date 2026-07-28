@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using UglyToad.PdfPig;
+using DocumentFormat.OpenXml.Packaging; // 🎯 YENİ: Word ve PowerPoint okumak için eklendi
 
 namespace MiniLms.Services
 {
@@ -18,9 +19,8 @@ namespace MiniLms.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _webHostEnvironment;
-        private readonly IVectorDbService _vectorDbService; // 🎯 YENİ: Vektör silme işlemleri için eklendi
+        private readonly IVectorDbService _vectorDbService;
 
-        // Constructor güncellenerek IVectorDbService bağımlılığı enjekte edildi
         public CourseDocumentService(
             ApplicationDbContext context,
             IWebHostEnvironment webHostEnvironment,
@@ -76,13 +76,11 @@ namespace MiniLms.Services
             return await _context.CourseDocuments.FindAsync(id);
         }
 
-        // 🎯 GÜNCELLENEN VE TAM SENKRONİZASYON SAĞLAYAN SİLME METODU
         public async Task DeleteDocumentAsync(int id)
         {
             var document = await _context.CourseDocuments.FindAsync(id);
             if (document != null)
             {
-                // 1. Bu dökümana ait LessonContents (parçalanmış metin) kayıtlarını SQL'den çek
                 var associatedContents = await _context.LessonContents
                     .Where(content => content.ResourceUrl == document.FilePath)
                     .ToListAsync();
@@ -91,15 +89,10 @@ namespace MiniLms.Services
                 {
                     var associatedContentIds = associatedContents.Select(c => c.Id).ToList();
                     var associatedLessonIds = associatedContents.Select(c => c.LessonId).Distinct().ToList();
-
-                    // 2. Yapay zeka belleğinden (Qdrant) bu parçaların vektörlerini sil
-                    // Senkronizasyon servisindeki Id eşleşmesine göre listeyi ulong/long olarak hazırlıyoruz
                     var pointIds = associatedContents.Select(c => (long)c.Id).ToList();
 
-                    // Not: IVectorDbService'inizdeki metot imzanıza göre DeleteVectorsAsync veya DeleteVectorAsync çağırabilirsiniz
                     await _vectorDbService.DeleteVectorAsync(pointIds);
 
-                    // 3. SQL Veritabanındaki parçalanmış LessonContents kayıtlarını temizle
                     _context.LessonContents.RemoveRange(associatedContents);
 
                     foreach (int lessonId in associatedLessonIds)
@@ -120,14 +113,12 @@ namespace MiniLms.Services
                     }
                 }
 
-                // 4. Fiziksel dosyayı sunucu diskinden (wwwroot/uploads) sil
                 string physicalPath = Path.Combine(_webHostEnvironment.WebRootPath, document.FilePath.TrimStart('/'));
                 if (File.Exists(physicalPath))
                 {
                     File.Delete(physicalPath);
                 }
 
-                // 5. Veri tabanından ana döküman kaydını sil
                 _context.CourseDocuments.Remove(document);
                 await _context.SaveChangesAsync();
             }
@@ -161,11 +152,9 @@ namespace MiniLms.Services
             }
 
             string extension = Path.GetExtension(physicalPath).ToLowerInvariant();
-            string extractedText = extension == ".pdf"
-                ? ExtractTextFromPdf(physicalPath)
-                : extension == ".txt"
-                    ? await File.ReadAllTextAsync(physicalPath)
-                    : string.Empty;
+
+            // 🎯 GÜNCELLENDİ: Merkezi okuma metodunu kullanıyoruz
+            string extractedText = await ExtractTextFromFileAsync(physicalPath, extension);
 
             if (string.IsNullOrWhiteSpace(extractedText))
             {
@@ -220,9 +209,11 @@ namespace MiniLms.Services
             }
 
             string extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (extension != ".pdf" && extension != ".txt")
+
+            var allowedExtensions = new HashSet<string> { ".pdf", ".txt", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".rar" };
+            if (!allowedExtensions.Contains(extension))
             {
-                throw new InvalidOperationException("Sadece PDF veya TXT dosyası yükleyebilirsiniz.");
+                throw new InvalidOperationException("Desteklenmeyen dosya formatı. Lütfen akademik bir belge yükleyin.");
             }
 
             string uniqueFileName = Guid.NewGuid() + "_" + Path.GetFileName(file.FileName);
@@ -231,15 +222,6 @@ namespace MiniLms.Services
             using (var fileStream = new FileStream(filePath, FileMode.Create))
             {
                 await file.CopyToAsync(fileStream);
-            }
-
-            string extractedText = extension == ".pdf"
-                ? ExtractTextFromPdf(filePath)
-                : await File.ReadAllTextAsync(filePath);
-
-            if (string.IsNullOrWhiteSpace(extractedText))
-            {
-                throw new InvalidOperationException("Dosyadan okunabilir metin çıkarılamadı.");
             }
 
             var document = new CourseDocument
@@ -251,62 +233,75 @@ namespace MiniLms.Services
             };
 
             await _context.CourseDocuments.AddAsync(document);
-            await AddDocumentTopicLessonAsync(courseId, document, extractedText);
+            await _context.SaveChangesAsync();
 
-            var lesson = await _context.Lessons
-                .Where(l => l.CourseId == courseId && l.Title == "Yüklenen Dokümanlar")
-                .FirstOrDefaultAsync();
-
-            if (lesson == null)
+            // 🎯 GÜNCELLENDİ: Akıllı metin çıkarma
+            string extractedText = string.Empty;
+            try
             {
-                int nextWeekNumber = await _context.Lessons
-                    .Where(l => l.CourseId == courseId)
-                    .Select(l => (int?)l.WeekNumber)
+                extractedText = await ExtractTextFromFileAsync(filePath, extension);
+            }
+            catch
+            {
+                // Okuma hatası olursa boş geç, sistem çökmesin. Dosya indirilmek üzere korunacak.
+            }
+
+            if (!string.IsNullOrWhiteSpace(extractedText))
+            {
+                await AddDocumentTopicLessonAsync(courseId, document, extractedText);
+
+                var lesson = await _context.Lessons
+                    .Where(l => l.CourseId == courseId && l.Title == "Yüklenen Dokümanlar")
+                    .FirstOrDefaultAsync();
+
+                if (lesson == null)
+                {
+                    int nextWeekNumber = await _context.Lessons
+                        .Where(l => l.CourseId == courseId)
+                        .Select(l => (int?)l.WeekNumber)
+                        .MaxAsync() ?? 0;
+
+                    lesson = new Lesson
+                    {
+                        CourseId = courseId,
+                        Title = "Yüklenen Dokümanlar",
+                        WeekNumber = nextWeekNumber + 1
+                    };
+
+                    await _context.Lessons.AddAsync(lesson);
+                    await _context.SaveChangesAsync();
+                }
+
+                int nextOrder = await _context.LessonContents
+                    .Where(c => c.LessonId == lesson.Id)
+                    .Select(c => (int?)c.Order)
                     .MaxAsync() ?? 0;
 
-                lesson = new Lesson
+                foreach (string chunk in SplitText(extractedText, 3000))
                 {
-                    CourseId = courseId,
-                    Title = "Yüklenen Dokümanlar",
-                    WeekNumber = nextWeekNumber + 1
-                };
+                    nextOrder++;
 
-                await _context.Lessons.AddAsync(lesson);
+                    await _context.LessonContents.AddAsync(new LessonContent
+                    {
+                        LessonId = lesson.Id,
+                        Title = $"{Path.GetFileNameWithoutExtension(file.FileName)} - Bölüm {nextOrder}",
+                        Text = chunk,
+                        Body = chunk,
+                        ResourceUrl = document.FilePath,
+                        Order = nextOrder,
+                        Type = extension == ".pdf" ? "Pdf" : "Text",
+                        IsIndexed = false
+                    });
+                }
+
                 await _context.SaveChangesAsync();
             }
-
-            int nextOrder = await _context.LessonContents
-                .Where(c => c.LessonId == lesson.Id)
-                .Select(c => (int?)c.Order)
-                .MaxAsync() ?? 0;
-
-            foreach (string chunk in SplitText(extractedText, 3000))
-            {
-                nextOrder++;
-
-                await _context.LessonContents.AddAsync(new LessonContent
-                {
-                    LessonId = lesson.Id,
-                    Title = $"{Path.GetFileNameWithoutExtension(file.FileName)} - Bölüm {nextOrder}",
-                    Text = chunk,
-                    Body = chunk,
-                    ResourceUrl = document.FilePath,
-                    Order = nextOrder,
-                    Type = extension == ".pdf" ? "Pdf" : "Text",
-                    IsIndexed = false
-                });
-            }
-
-            await _context.SaveChangesAsync();
         }
 
         private async Task AddDocumentTopicLessonAsync(int courseId, CourseDocument document, string extractedText)
         {
             var topicHeadings = ExtractTopicHeadings(extractedText, document.FileName);
-            if (topicHeadings.Count == 0)
-            {
-                return;
-            }
+            if (topicHeadings.Count == 0) return;
 
             int nextWeekNumber = await _context.Lessons
                 .Where(l => l.CourseId == courseId && l.Title != "Yüklenen Dokümanlar")
@@ -341,10 +336,62 @@ namespace MiniLms.Services
             }
         }
 
+        // 🎯 YENİ: Merkezi Metin Çıkarma Yönlendiricisi
+        private async Task<string> ExtractTextFromFileAsync(string filePath, string extension)
+        {
+            return extension switch
+            {
+                ".pdf" => ExtractTextFromPdf(filePath),
+                ".txt" => await File.ReadAllTextAsync(filePath),
+                ".docx" => ExtractTextFromDocx(filePath),
+                ".pptx" => ExtractTextFromPptx(filePath),
+                _ => string.Empty // Excel ve Zip dosyaları atlanır
+            };
+        }
+
         private static string ExtractTextFromPdf(string filePath)
         {
-            using var document = PdfDocument.Open(filePath);
-            return string.Join(Environment.NewLine, document.GetPages().Select(page => page.Text));
+            try
+            {
+                using var document = PdfDocument.Open(filePath);
+                return string.Join(Environment.NewLine, document.GetPages().Select(page => page.Text));
+            }
+            catch { return string.Empty; }
+        }
+
+        // 🎯 YENİ: Word Dosyalarından Metin Çıkarma
+        private static string ExtractTextFromDocx(string filePath)
+        {
+            try
+            {
+                using var wordDoc = WordprocessingDocument.Open(filePath, false);
+                return wordDoc.MainDocumentPart?.Document?.Body?.InnerText ?? string.Empty;
+            }
+            catch { return string.Empty; }
+        }
+
+        // 🎯 YENİ: PowerPoint Sunumlarından Metin Çıkarma
+        private static string ExtractTextFromPptx(string filePath)
+        {
+            try
+            {
+                using var pptDoc = PresentationDocument.Open(filePath, false);
+                var texts = new List<string>();
+
+                if (pptDoc.PresentationPart?.SlideParts != null)
+                {
+                    foreach (var slidePart in pptDoc.PresentationPart.SlideParts)
+                    {
+                        if (slidePart.Slide != null)
+                        {
+                            var slideTexts = slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Text>().Select(t => t.Text);
+                            texts.AddRange(slideTexts);
+                        }
+                    }
+                }
+                return string.Join(" ", texts);
+            }
+            catch { return string.Empty; }
         }
 
         private async Task<string> ReadDocumentTextAsync(CourseDocument document)
@@ -356,11 +403,7 @@ namespace MiniLms.Services
             }
 
             string extension = Path.GetExtension(physicalPath).ToLowerInvariant();
-            return extension == ".pdf"
-                ? ExtractTextFromPdf(physicalPath)
-                : extension == ".txt"
-                    ? await File.ReadAllTextAsync(physicalPath)
-                    : string.Empty;
+            return await ExtractTextFromFileAsync(physicalPath, extension);
         }
 
         private static List<string> ExtractTopicHeadings(string text, string fileName)
@@ -377,10 +420,7 @@ namespace MiniLms.Services
             foreach (string line in lines)
             {
                 AddTopic(topics, line);
-                if (topics.Count >= 18)
-                {
-                    return topics;
-                }
+                if (topics.Count >= 18) return topics;
             }
 
             if (topics.Count < 4)
@@ -391,10 +431,7 @@ namespace MiniLms.Services
                     RegexOptions.IgnoreCase))
                 {
                     AddTopic(topics, CleanHeading(match.Groups[1].Value));
-                    if (topics.Count >= 18)
-                    {
-                        return topics;
-                    }
+                    if (topics.Count >= 18) return topics;
                 }
             }
 
@@ -413,41 +450,21 @@ namespace MiniLms.Services
             heading = Regex.Replace(heading, @"\s+\.{2,}\s*\d+$", string.Empty).Trim();
             heading = heading.Trim(':', '-', '–', '—', '.', ' ');
 
-            return heading.Length > 110
-                ? heading.Substring(0, 110).Trim()
-                : heading;
+            return heading.Length > 110 ? heading.Substring(0, 110).Trim() : heading;
         }
 
         private static bool IsLikelyHeading(string line)
         {
-            if (string.IsNullOrWhiteSpace(line) || line.Length < 4 || line.Length > 110)
-            {
-                return false;
-            }
-
-            if (line.Count(char.IsLetter) < 3 || line.EndsWith(",", StringComparison.Ordinal))
-            {
-                return false;
-            }
-
-            if (Regex.IsMatch(line, @"^(table|figure|şekil|tablo|page|sayfa|references|kaynakça)\b", RegexOptions.IgnoreCase))
-            {
-                return false;
-            }
-
-            if (Regex.IsMatch(line, @"^(\d+(\.\d+)*\.?\s+|Hafta\s+\d+[:\-.]?\s+|Bölüm\s+\d+[:\-.]?\s+|Konu\s+\d+[:\-.]?\s+|Chapter\s+\d+[:\-.]?\s+|Lecture\s+\d+[:\-.]?\s+)", RegexOptions.IgnoreCase))
-            {
-                return true;
-            }
+            if (string.IsNullOrWhiteSpace(line) || line.Length < 4 || line.Length > 110) return false;
+            if (line.Count(char.IsLetter) < 3 || line.EndsWith(",", StringComparison.Ordinal)) return false;
+            if (Regex.IsMatch(line, @"^(table|figure|şekil|tablo|page|sayfa|references|kaynakça)\b", RegexOptions.IgnoreCase)) return false;
+            if (Regex.IsMatch(line, @"^(\d+(\.\d+)*\.?\s+|Hafta\s+\d+[:\-.]?\s+|Bölüm\s+\d+[:\-.]?\s+|Konu\s+\d+[:\-.]?\s+|Chapter\s+\d+[:\-.]?\s+|Lecture\s+\d+[:\-.]?\s+)", RegexOptions.IgnoreCase)) return true;
 
             int letterCount = line.Count(char.IsLetter);
             int upperCount = line.Count(char.IsUpper);
             bool mostlyUpper = letterCount > 0 && upperCount >= Math.Max(3, (int)(letterCount * 0.65));
 
-            if (mostlyUpper && line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 10)
-            {
-                return true;
-            }
+            if (mostlyUpper && line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 10) return true;
 
             bool shortTitle = line.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 8 &&
                               !line.Contains(". ") &&
@@ -458,20 +475,14 @@ namespace MiniLms.Services
 
         private static void AddTopic(List<string> topics, string topic)
         {
-            if (string.IsNullOrWhiteSpace(topic))
-            {
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(topic)) return;
 
             bool exists = topics.Any(existing =>
                 existing.Equals(topic, StringComparison.OrdinalIgnoreCase) ||
                 existing.Contains(topic, StringComparison.OrdinalIgnoreCase) ||
                 topic.Contains(existing, StringComparison.OrdinalIgnoreCase));
 
-            if (!exists)
-            {
-                topics.Add(topic);
-            }
+            if (!exists) topics.Add(topic);
         }
 
         private static IEnumerable<string> SplitText(string text, int chunkSize)

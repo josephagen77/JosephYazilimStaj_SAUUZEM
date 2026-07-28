@@ -5,13 +5,13 @@ namespace MiniLms.Interfaces
 {
     public interface IAiService
     {
-        // Doküman özetleme metodu (Now supports dynamic model selection)
-        Task<string> SummarizeTextAsync(string text, string? modelName = null);
+        // Doküman özetleme ve genel sohbet metodu (Çoklu sağlayıcı destekler)
+        Task<string> SummarizeTextAsync(string text, string provider = "gemini", string? userApiKey = null);
 
-        // Dokümandan test/quiz üretme metodu (Now supports dynamic model selection)
-        Task<string> GenerateQuizAsync(string text, int questionCount = 5, string? modelName = null);
+        // Dokümandan test/quiz üretme metodu (Çoklu sağlayıcı destekler)
+        Task<string> GenerateQuizAsync(string text, int questionCount = 5, string provider = "gemini", string? userApiKey = null);
 
-        // Vector DB (Qdrant) için metinleri 768 boyutlu vektöre çeviren metot
+        // Vector DB (Qdrant) için metinleri vektöre çeviren metot (Her zaman okulun güvenli Gemini'sini kullanır)
         Task<List<float>?> GetEmbeddingAsync(string text);
     }
 }

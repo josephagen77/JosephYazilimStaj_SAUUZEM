@@ -29,3 +29,20 @@
   </ItemGroup>
 
 </Project>
+
+amJsonRpc.RemoteInvocationException: Pending update has not been committed or discarded.
+   at StreamJsonRpc.JsonRpc.<InvokeCoreAsync>d__156`1.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at Microsoft.CodeAnalysis.Remote.BrokeredServiceConnection`1.<TryInvokeAsync>d__13.MoveNext()
+RPC server exception:
+System.InvalidOperationException: Pending update has not been committed or discarded.
+      at Microsoft.CodeAnalysis.EditAndContinue.DebuggingSession.Dispose()
+      at Microsoft.CodeAnalysis.EditAndContinue.DebuggingSession.EndSession(Data& telemetryData)
+      at Microsoft.CodeAnalysis.EditAndContinue.EditAndContinueService.EndDebuggingSession(DebuggingSessionId sessionId)
+      at Microsoft.CodeAnalysis.EditAndContinue.RemoteEditAndContinueService.<>c__DisplayClass9_0.<EndDebuggingSessionAsync>b__0(CancellationToken cancellationToken)
+      at Microsoft.CodeAnalysis.Remote.BrokeredServiceBase.RunServiceImplAsync(Func`2 implementation, CancellationToken cancellationToken)
+ And also :'LessonRepository._context' hides inherited member 'GenericRepository<Lesson>._context'. Use the new keyword if hiding was intended.
+'CourseRepository._context' hides inherited member 'GenericRepository<Course>._context'. Use the new keyword if hiding was intended.
+'LessonContentRepository._context' hides inherited member 'GenericRepository<LessonContent>._context'. Use the new keyword if hiding was intended.

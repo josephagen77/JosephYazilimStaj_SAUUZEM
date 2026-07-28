@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -20,19 +21,19 @@ namespace MiniLms.Services
         public AiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
-            // Now reading from the updated, nested JSON structure
             _apiKey = configuration["AiServices:Gemini:ApiKey"] ?? "";
-            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-2.5-flash";
-            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-1.5-flash";
+
+            // 🎯 GÜNCELLENDİ: Yeni nesil 3.6 ve 3.5 modelleri tanımlandı
+            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-3.6-flash";
+            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-3.5-flash-lite";
             _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "text-embedding-004";
         }
 
-        public async Task<string> GenerateQuizAsync(string text, int questionCount = 5, string? modelName = null)
+        public async Task<string> GenerateQuizAsync(string text, int questionCount = 5, string provider = "gemini", string? userApiKey = null)
         {
             if (string.IsNullOrWhiteSpace(text)) return "Quiz üretilecek metin boş.";
-
             string prompt = $"Aşağıdaki metne dayanarak {questionCount} adet çoktan seçmeli soru hazırla:\n\n{text}";
-            return await SummarizeTextAsync(prompt, modelName);
+            return await SummarizeTextAsync(prompt, provider, userApiKey);
         }
 
         public async Task<List<float>?> GetEmbeddingAsync(string text)
@@ -40,25 +41,24 @@ namespace MiniLms.Services
             if (string.IsNullOrEmpty(text)) return null;
             if (!HasValidApiKey())
             {
-                Console.WriteLine("[Embedding API Hatası]: Gemini API anahtarı geçerli görünmüyor.");
+                Console.WriteLine("[Embedding API Hatası]: Kurumsal Gemini API anahtarı geçerli görünmüyor.");
                 return null;
             }
 
             try
             {
                 string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_embeddingModel}:embedContent";
-
                 var requestBody = new { content = new { parts = new[] { new { text = text } } } };
                 string jsonPayload = JsonSerializer.Serialize(requestBody);
 
                 var request = new HttpRequestMessage(HttpMethod.Post, url);
                 var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                stringContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
                 request.Content = stringContent;
                 request.Headers.Add("x-goog-api-key", _apiKey);
 
                 _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
                 HttpResponseMessage response = await _httpClient.SendAsync(request);
 
@@ -70,7 +70,6 @@ namespace MiniLms.Services
                 }
 
                 string jsonResponse = await response.Content.ReadAsStringAsync();
-
                 using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
                 {
                     var root = doc.RootElement;
@@ -94,69 +93,22 @@ namespace MiniLms.Services
             }
         }
 
-        public async Task<string> SummarizeTextAsync(string prompt, string? modelName = null)
+        public async Task<string> SummarizeTextAsync(string prompt, string provider = "gemini", string? userApiKey = null)
         {
             if (string.IsNullOrEmpty(prompt)) return "Prompt içeriği boş olamaz.";
-            if (!HasValidApiKey())
-            {
-                return "Gemini API anahtarı geçerli değil. Lütfen geçerli bir API anahtarı yapılandırın.";
-            }
-
-            // DYNAMIC ROUTING LOGIC: Use passed model, fallback to default, or absolute fallback
-            string selectedModel = !string.IsNullOrWhiteSpace(modelName) ? modelName : _defaultModel;
 
             try
             {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{selectedModel}:generateContent";
-
-                var requestBody = new
+                if (provider == "chatgpt" && !string.IsNullOrWhiteSpace(userApiKey))
                 {
-                    contents = new[] { new { parts = new[] { new { text = prompt } } } }
-                };
-
-                string jsonPayload = JsonSerializer.Serialize(requestBody);
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url);
-                var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                stringContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-                request.Content = stringContent;
-                request.Headers.Add("x-goog-api-key", _apiKey);
-
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-
-                HttpResponseMessage response = await _httpClient.SendAsync(request);
-
-                // FALLBACK MECHANISM: If the selected model fails (e.g. deprecated 404), try the fallback model
-                if (!response.IsSuccessStatusCode && selectedModel != _fallbackModel && response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                    return await CallOpenAiAsync(prompt, userApiKey);
+                }
+                else if (provider == "claude" && !string.IsNullOrWhiteSpace(userApiKey))
                 {
-                    Console.WriteLine($"[AI Service]: {selectedModel} başarısız oldu. {_fallbackModel} modeline geçiliyor...");
-                    return await SummarizeTextAsync(prompt, _fallbackModel);
+                    return await CallAnthropicAsync(prompt, userApiKey);
                 }
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    string errorContent = await response.Content.ReadAsStringAsync();
-                    return BuildGeminiErrorMessage((int)response.StatusCode, errorContent);
-                }
-
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-
-                using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
-                {
-                    var root = doc.RootElement;
-                    if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
-                    {
-                        var firstCandidate = candidates[0];
-                        if (firstCandidate.TryGetProperty("content", out var contentProp) &&
-                            contentProp.TryGetProperty("parts", out var parts) && parts.GetArrayLength() > 0)
-                        {
-                            return parts[0].GetProperty("text").GetString() ?? "Asistandan boş içerik döndü.";
-                        }
-                    }
-                }
-
-                return "Yapay zekadan gelen JSON paketi anlamlı bir metne çözümlenemedi.";
+                return await CallGeminiAsync(prompt);
             }
             catch (Exception ex)
             {
@@ -164,7 +116,108 @@ namespace MiniLms.Services
             }
         }
 
-        // --- Helper Methods remain the same below this point ---
+        private async Task<string> CallGeminiAsync(string prompt)
+        {
+            if (!HasValidApiKey()) return "Kurumsal Gemini API anahtarı yapılandırılmamış veya geçersiz.";
+
+            string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_defaultModel}:generateContent";
+            var requestBody = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
+            string jsonPayload = JsonSerializer.Serialize(requestBody);
+
+            var request = new HttpRequestMessage(HttpMethod.Post, url);
+            var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+            request.Content = stringContent;
+            request.Headers.Add("x-goog-api-key", _apiKey);
+
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+            HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string errorContent = await response.Content.ReadAsStringAsync();
+                return BuildGeminiErrorMessage((int)response.StatusCode, errorContent);
+            }
+
+            return ParseGeminiResponse(await response.Content.ReadAsStringAsync());
+        }
+
+        private async Task<string> CallOpenAiAsync(string prompt, string apiKey)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
+
+            var requestBody = new
+            {
+                model = "gpt-4o-mini",
+                messages = new[] { new { role = "user", content = prompt } }
+            };
+
+            request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string rawError = await response.Content.ReadAsStringAsync();
+                return $"OpenAI Reddedildi (Kod: {response.StatusCode}): Lütfen hatayı kontrol edin: {rawError}";
+            }
+
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            using var document = JsonDocument.Parse(jsonResponse);
+            return document.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "ChatGPT boş yanıt döndürdü.";
+        }
+
+        private async Task<string> CallAnthropicAsync(string prompt, string apiKey)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+            request.Headers.Add("x-api-key", apiKey.Trim());
+            request.Headers.Add("anthropic-version", "2023-06-01");
+
+            var requestBody = new
+            {
+                model = "claude-3-5-sonnet-20240620",
+                max_tokens = 2048,
+                messages = new[] { new { role = "user", content = prompt } }
+            };
+
+            request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                string rawError = await response.Content.ReadAsStringAsync();
+                return $"Claude Reddedildi (Kod: {response.StatusCode}): {rawError}";
+            }
+
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            using var document = JsonDocument.Parse(jsonResponse);
+            return document.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? "Claude boş yanıt döndürdü.";
+        }
+
+        private string ParseGeminiResponse(string jsonResponse)
+        {
+            try
+            {
+                using JsonDocument doc = JsonDocument.Parse(jsonResponse);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+                {
+                    var firstCandidate = candidates[0];
+                    if (firstCandidate.TryGetProperty("content", out var contentProp) &&
+                        contentProp.TryGetProperty("parts", out var parts) && parts.GetArrayLength() > 0)
+                    {
+                        return parts[0].GetProperty("text").GetString() ?? "Asistandan boş içerik döndü.";
+                    }
+                }
+                return "Yapay zekadan gelen JSON paketi anlamlı bir metne çözümlenemedi.";
+            }
+            catch
+            {
+                return "Yapay zeka verisi işlenirken hata oluştu.";
+            }
+        }
+
         private bool HasValidApiKey()
         {
             return !string.IsNullOrWhiteSpace(_apiKey) &&
@@ -181,13 +234,10 @@ namespace MiniLms.Services
             string message = TryReadGoogleErrorMessage(errorContent);
 
             if (statusCode == 400 || statusCode == 401 || statusCode == 403)
-            {
-                return $"Gemini API anahtarı geçerli değil veya yetkisiz ({statusCode}). Detay: {message}";
-            }
+                return $"Kurumsal Gemini API anahtarı geçerli değil veya yetkisiz ({statusCode}). Detay: {message}";
             if (statusCode == 404)
-            {
-                return $"Gemini modeli bulunamadı ({statusCode}). Detay: {message}";
-            }
+                return $"Kurumsal Gemini modeli bulunamadı ({statusCode}). Detay: {message}";
+
             return $"Gemini API şu an yanıt üretemedi ({statusCode}). Detay: {message}";
         }
 

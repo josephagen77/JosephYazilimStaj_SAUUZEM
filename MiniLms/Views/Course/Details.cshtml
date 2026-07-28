@@ -4,11 +4,6 @@
 
 @{
     ViewData["Title"] = Model.Title + " - Ders Detayları";
-
-    // Read the dynamic models from appsettings.json
-    var supportedModels = Configuration.GetSection("AiServices:Gemini:SupportedModels").Get<string[]>()
-                          ?? new[] { "gemini-2.5-flash", "gemini-1.5-flash" };
-    var defaultModel = Configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-2.5-flash";
 }
 
 <div>
@@ -39,30 +34,31 @@
     </section>
 
     <div class="row">
+        <!-- SOL PANEL: Ders İçerikleri -->
         <div class="col-lg-7 mb-4">
-            <div class="card h-100">
+            <div class="card h-100 shadow-sm border-0">
                 <div class="card-header bg-white py-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-calendar3-week text-primary"></i> Haftalık Ders İçerikleri</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body bg-light">
                     @if (Model.Lessons != null && Model.Lessons.Any(l => l.Title != "Yüklenen Dokümanlar"))
                     {
                         <div class="accordion" id="lessonsAccordion">
                             @foreach (var lesson in Model.Lessons.Where(l => l.Title != "Yüklenen Dokümanlar").OrderBy(l => l.WeekNumber))
                             {
-                                <div class="accordion-item">
+                                <div class="accordion-item border-0 mb-2 shadow-sm rounded">
                                     <h2 class="accordion-header" id="heading-@lesson.Id">
-                                        <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-@lesson.Id">
+                                        <button class="accordion-button collapsed fw-bold rounded" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-@lesson.Id">
                                             Hafta @lesson.WeekNumber: @lesson.Title
                                         </button>
                                     </h2>
                                     <div id="collapse-@lesson.Id" class="accordion-collapse collapse" data-bs-parent="#lessonsAccordion">
-                                        <div class="accordion-body bg-white">
+                                        <div class="accordion-body bg-white rounded-bottom">
                                             @if (lesson.Contents != null && lesson.Contents.Any())
                                             {
                                                 @foreach (var content in lesson.Contents.OrderBy(c => c.Order))
                                                 {
-                                                    <div class="content-strip mb-2">
+                                                    <div class="content-strip mb-2 p-2 border-start border-3 border-primary bg-light">
                                                         <h6 class="fw-bold text-dark mb-1">@content.Title</h6>
                                                         <p class="small text-muted mb-0">@content.Text</p>
                                                     </div>
@@ -88,15 +84,19 @@
             </div>
         </div>
 
+        <!-- SAĞ PANEL: AI Asistanı & Dokümanlar -->
         <div class="col-lg-5">
             <div class="card ai-panel mb-4 shadow-sm border-primary">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-robot"></i> AI Çalışma Asistanı</h5>
                 </div>
                 <div class="card-body bg-light">
-                    <p class="small text-muted mb-3">
-                        Ders içeriklerini analiz edin, özet çıkarın veya seçtiğiniz yapay zeka modeliyle etkileşimli quizler oluşturun.
-                    </p>
+
+                    <!-- 🎯 YENİ: Öğrenciyi Farklı Modelleri Denemeye Teşvik Eden Kutu -->
+                    <div class="alert alert-info py-2 px-3 mb-3 shadow-sm border-info" style="font-size: 0.85rem;">
+                        <i class="bi bi-lightbulb-fill text-warning fs-6"></i> <strong>Farklı bir AI modeli deneyin!</strong><br />
+                        Varsayılan olarak okulun Gemini sistemini ücretsiz kullanıyorsunuz. Aşağıdan <strong>ChatGPT</strong> veya <strong>Claude</strong>'u seçerek kendi kişisel API anahtarınızla daha gelişmiş modelleri test edebilirsiniz. Nasıl anahtar alacağınızı bilmiyorsanız, modeli seçtiğinizde belirecek olan eğitim videosunu izleyebilirsiniz!
+                    </div>
 
                     <div id="aiResponseContainer" class="p-3 mb-3 border border-2 rounded bg-white shadow-sm d-none">
                         <span class="fw-bold text-primary d-block mb-2"><i class="bi bi-stars"></i> Asistan Yanıtı:</span>
@@ -109,13 +109,13 @@
                         </div>
                     </div>
 
-                    <form id="askAiForm" class="bg-white p-3 border rounded">
+                    <form id="askAiForm" class="bg-white p-3 border rounded shadow-sm">
                         <input type="hidden" name="courseId" value="@Model.Id" />
 
                         <div class="row mb-3">
-                            <div class="col-6">
+                            <div class="col-12 mb-2">
                                 <label class="form-label small fw-bold text-secondary">Kaynak Doküman</label>
-                                <select class="form-select form-select-sm" name="documentId" id="documentIdSelect">
+                                <select class="form-select form-select-sm bg-light" name="documentId" id="documentIdSelect">
                                     <option value="">Tüm Ders Kaynakları</option>
                                     @if (Model.Documents != null)
                                     {
@@ -126,25 +126,38 @@
                                     }
                                 </select>
                             </div>
-                            <div class="col-6">
-                                <label class="form-label small fw-bold text-secondary">Yapay Zeka Modeli</label>
-                                <select class="form-select form-select-sm" name="modelName" id="aiModelSelect">
-                                    @foreach (var modelName in supportedModels)
-                                    {
-                                        if (modelName == defaultModel)
-                                        {
-                                            <option value="@modelName" selected>@modelName (Varsayılan)</option>
-                                        }
-                                        else
-                                        {
-                                            <option value="@modelName">@modelName</option>
-                                        }
-                                    }
+                            <div class="col-12">
+                                <label class="form-label small fw-bold text-secondary">Yapay Zeka Sağlayıcısı</label>
+                                <select class="form-select form-select-sm border-primary" name="provider" id="aiProviderSelect">
+                                    <option value="gemini" selected>Google Gemini (Ücretsiz Kurumsal Mod)</option>
+                                    <option value="chatgpt">OpenAI ChatGPT (Kişisel Anahtar İle)</option>
+                                    <option value="claude">Anthropic Claude (Kişisel Anahtar İle)</option>
                                 </select>
                             </div>
                         </div>
 
-                        <div class="input-group">
+                        <!-- 🎯 YENİ: Gizli API Key Alanı ve YouTube Eğitim Modülü -->
+                        <div id="apiConnectionSection" style="display: none;">
+
+                            <!-- API Giriş Alanı -->
+                            <div class="mb-3 p-2 bg-light border border-warning rounded">
+                                <label class="form-label small fw-bold text-dark">Kişisel API Anahtarınız <i class="bi bi-key-fill text-warning"></i></label>
+                                <input type="password" name="userApiKey" id="userApiKeyInput" class="form-control form-control-sm border-warning" placeholder="sk-..." autocomplete="off" />
+                                <small class="text-muted d-block mt-1" style="font-size: 10px;">Gizlilik Uyarısı: Girdiğiniz anahtar sunucuya kaydedilmez, sadece bu oturumdaki istekleriniz için anlık olarak kullanılır.</small>
+                            </div>
+
+                            <!-- Dinamik Video ve Talimat Alanı -->
+                            <div id="apiKeyHelpContainer" class="mb-3 p-3 bg-white border border-info rounded shadow-sm">
+                                <h6 class="fw-bold text-info mb-2 fs-6" id="helpTitle">API Anahtarı Nasıl Alınır?</h6>
+                                <div class="small text-muted mb-3" id="helpSteps" style="line-height: 1.5;"></div>
+                                <div class="ratio ratio-16x9 rounded overflow-hidden shadow-sm">
+                                    <iframe id="helpVideo" src="" title="YouTube API Key Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="input-group mt-2">
                             <input type="text" name="question" id="aiQuestionInput" class="form-control" placeholder="Ders içeriklerine dair soru sorun..." required />
                             <button type="submit" id="btnAskAi" class="btn btn-primary fw-bold"><i class="bi bi-send"></i> Sor</button>
                         </div>
@@ -152,7 +165,8 @@
                 </div>
             </div>
 
-            <div class="card mb-4">
+            <!-- Kaynak Dokümanlar Listesi -->
+            <div class="card mb-4 shadow-sm border-0">
                 <div class="card-header bg-white py-3">
                     <h5 class="mb-0 fw-bold"><i class="bi bi-file-earmark-pdf text-danger"></i> Kaynak Dokümanlar</h5>
                 </div>
@@ -194,20 +208,21 @@
                 </div>
             </div>
 
+            <!-- Öğretmen Doküman Yükleme Alanı -->
             @if (User.IsInRole("Teacher"))
             {
-                <div class="card mb-4">
+                <div class="card mb-4 shadow-sm border-0">
                     <div class="card-header bg-white fw-bold py-3">
                         <h5 class="mb-0 fw-bold"><i class="bi bi-cloud-arrow-up text-primary"></i> Bilgi Havuzuna Doküman Ekle</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body bg-light">
                         <form asp-action="UploadDocument" method="post" enctype="multipart/form-data">
                             <input type="hidden" name="courseId" value="@Model.Id" />
                             <div class="mb-3">
-                                <label class="form-label small text-muted">Sistem otomatik olarak metin analizi yapıp vektör indeksleme yapacaktır. (.pdf, .txt)</label>
-                                <input type="file" name="file" class="form-control form-control-sm" accept=".pdf,.txt" required />
+                                <label class="form-label small text-muted">Tüm akademik formatları destekler (.pdf, .docx, .pptx, .xlsx, .zip vb.). AI metin okuyabilen formatları otomatik indeksler.</label>
+                                <input type="file" name="file" class="form-control form-control-sm border-primary" accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" required />
                             </div>
-                            <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold shadow-sm">Yükle ve İndeksle</button>
+                            <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold shadow-sm"><i class="bi bi-upload"></i> Yükle ve İndeksle</button>
                         </form>
                     </div>
                 </div>
@@ -216,13 +231,13 @@
     </div>
 </div>
 
-<!-- Modal Kodu Değişmedi, sadece aşağıda JS güncellendi -->
+<!-- Quiz Modalı -->
 <div class="modal fade" id="quizModal" tabindex="-1" aria-labelledby="quizModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content quiz-modal">
-            <div class="modal-header">
+            <div class="modal-header bg-light">
                 <div>
-                    <h5 class="modal-title fw-bold" id="quizModalLabel">Doküman Quiz</h5>
+                    <h5 class="modal-title fw-bold text-dark" id="quizModalLabel">Doküman Quiz</h5>
                     <small class="text-muted" id="quizProgressText">Hazırlanıyor...</small>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
@@ -248,36 +263,36 @@
                             </select>
                         </div>
                         <div class="col-sm-3">
-                            <button type="button" class="btn btn-primary btn-sm w-100" id="quizStartBtn">Başlat</button>
+                            <button type="button" class="btn btn-primary btn-sm w-100 fw-bold" id="quizStartBtn">Başlat</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="progress quiz-progress mb-3" role="progressbar">
-                    <div class="progress-bar" id="quizProgressBar" style="width: 0%"></div>
+                    <div class="progress-bar bg-success" id="quizProgressBar" style="width: 0%"></div>
                 </div>
 
                 <div id="quizLoading" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted mt-3 mb-0">Seçili yapay zeka modeli quizi hazırlıyor...</p>
+                    <p class="text-muted mt-3 mb-0">Seçili yapay zeka sağlayıcısı quizi hazırlıyor. Lütfen bekleyin...</p>
                 </div>
 
                 <div id="quizQuestionArea" class="d-none">
                     <div class="quiz-meta mb-3" id="quizMeta"></div>
-                    <h5 class="quiz-question" id="quizQuestionText"></h5>
-                    <div id="quizOptions" class="quiz-options"></div>
+                    <h5 class="quiz-question fw-bold text-dark" id="quizQuestionText"></h5>
+                    <div id="quizOptions" class="quiz-options mt-3"></div>
                     <div id="quizFeedback" class="quiz-feedback d-none"></div>
                 </div>
 
                 <div id="quizResultArea" class="d-none text-center py-4">
-                    <div class="quiz-score" id="quizScoreText"></div>
-                    <p class="text-muted mb-3" id="quizScoreDetail"></p>
-                    <div id="quizReview" class="text-start"></div>
+                    <div class="quiz-score text-primary fw-bold display-4 mb-2" id="quizScoreText"></div>
+                    <p class="text-muted mb-4" id="quizScoreDetail"></p>
+                    <div id="quizReview" class="text-start bg-light p-3 rounded border"></div>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Kapat</button>
-                <button type="button" class="btn btn-primary" id="quizNextBtn" disabled>Sonraki</button>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">Kapat</button>
+                <button type="button" class="btn btn-primary fw-bold" id="quizNextBtn" disabled>Sonraki Soru</button>
             </div>
         </div>
     </div>
@@ -287,87 +302,127 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function () {
-            var quizState = {
-                questions: [],
-                currentIndex: 0,
-                answers: [],
-                selectedIndex: null,
-                documentId: null
-            };
-            var quizModal = new bootstrap.Modal(document.getElementById("quizModal"));
 
-            // Gizli Quiz butonunu yönetmek için bir değişken
+            // --- 🎯 YENİ: DİNAMİK YOUTUBE EĞİTİM VERİTABANI ---
+            const apiGuides = {
+                chatgpt: {
+                    title: "ChatGPT (OpenAI) API Anahtarı Nasıl Alınır?",
+                    steps: "<strong>Adım 1:</strong> <a href='https://platform.openai.com' target='_blank'>platform.openai.com</a> adresine gidin ve giriş yapın.<br><strong>Adım 2:</strong> Sol menüden <em>'API Keys'</em> sekmesine tıklayın.<br><strong>Adım 3:</strong> <em>'Create new secret key'</em> butonuna tıklayın, kopyalayıp yukarıdaki kutuya yapıştırın.",
+                    videoUrl: "https://www.youtube.com/embed/CGncYPblQA8?si=MiniLmsTutorial"
+                },
+                claude: {
+                    title: "Claude (Anthropic) API Anahtarı Nasıl Alınır?",
+                    steps: "<strong>Adım 1:</strong> <a href='https://console.anthropic.com' target='_blank'>console.anthropic.com</a> adresine gidin ve giriş yapın.<br><strong>Adım 2:</strong> Sol taraftaki yan menüden <em>'API Keys'</em> bağlantısına tıklayın.<br><strong>Adım 3:</strong> <em>'Create Key'</em> diyerek oluşturduğunuz şifreyi kopyalayıp yukarı yapıştırın.",
+                    videoUrl: "https://www.youtube.com/embed/nfOFl9RyiWw?si=MiniLmsTutorial"
+                }
+            };
+
+            // Provider (Model) Değiştiğinde UI'ı Güncelle
+            $("#aiProviderSelect").change(function() {
+                const selectedProvider = $(this).val();
+
+                if (selectedProvider === "gemini") {
+                    // Kurumsal Gemini seçilirse her şeyi gizle, şifreyi sil
+                    $("#apiConnectionSection").slideUp(300);
+                    $("#userApiKeyInput").val("");
+                } else {
+                    // ChatGPT veya Claude seçilirse API ekranını ve Videoyu aç
+                    const guideData = apiGuides[selectedProvider];
+                    if(guideData) {
+                        $("#helpTitle").html('<i class="bi bi-youtube text-danger"></i> ' + guideData.title);
+                        $("#helpSteps").html(guideData.steps);
+                        $("#helpVideo").attr("src", guideData.videoUrl);
+                    }
+
+                    $("#apiConnectionSection").slideDown(300);
+                }
+            });
+
+            // --- STANDART QUIZ VE AJAX MANTIĞI ---
+            var quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: null };
+            var quizModal = new bootstrap.Modal(document.getElementById("quizModal"));
             var currentSummaryDocId = null;
 
-            // 1. RAG Soru Sorma (Form içinde modelName zaten otomatik serialize ediliyor!)
+            function getAjaxData(baseData) {
+                // Seçilen provider ve kişisel API key'i tüm requestlere otomatik ekleyen yardımcı
+                return Object.assign(baseData, {
+                    provider: $("#aiProviderSelect").val(),
+                    userApiKey: $("#userApiKeyInput").val()
+                });
+            }
+
+            // 1. Soru Sorma
             $("#askAiForm").submit(function (e) {
                 e.preventDefault();
                 var btn = $("#btnAskAi");
                 var container = $("#aiResponseContainer");
                 var txt = $("#aiResponseText");
 
-                btn.prop("disabled", true).text("Analiz Ediliyor...");
+                btn.prop("disabled", true).text("İletiliyor...");
                 container.removeClass("d-none");
-                txt.html("<span class='text-muted italic'>Yapay zeka asistanı yanıt hazırlıyor...</span>");
+                txt.html("<span class='text-muted italic'><i class='spinner-border spinner-border-sm'></i> AI yanıt hazırlıyor...</span>");
                 $(".btn-quiz-from-summary").hide();
 
                 $.ajax({
-                    url: '@Url.Action("AskAi", "Course")',
+                    url: '@Url.Action("AskAi", "AiAssistant")',
                     type: 'POST',
-                    data: $(this).serialize(),
+                    data: getAjaxData({
+                        courseId: '@Model.Id',
+                        documentId: $("#documentIdSelect").val(),
+                        question: $("#aiQuestionInput").val()
+                    }),
                     success: function (data) {
                         if (data.success) {
                             txt.text(data.response);
                         } else {
-                            txt.html("<span class='text-danger fw-bold'>⚠️ Başarısız: " + data.response + "</span>");
+                            txt.html("<span class='text-danger fw-bold'>⚠️ Hata: " + data.response + "</span>");
                         }
                     },
                     error: function () {
-                        txt.html("<span class='text-danger'>Ağ hatası!</span>");
+                        txt.html("<span class='text-danger'>Ağ veya sunucu hatası meydana geldi!</span>");
                     },
                     complete: function () {
-                        btn.prop("disabled", false).text("Soruyu Sor");
+                        btn.prop("disabled", false).html("<i class='bi bi-send'></i> Sor");
                     }
                 });
             });
 
-            // 2. Özetleme İşlemi (Model parametresi AJAX'a eklendi)
+            // 2. Özet Çıkarma
             $(".btn-summary").click(function () {
                 var docId = $(this).data("id");
-                currentSummaryDocId = docId; // Quiz'e çevir butonu için hafızada tut
-                var courseId = '@Model.Id';
-                var selectedModel = $("#aiModelSelect").val(); // Dinamik seçimi al
+                currentSummaryDocId = docId;
 
-                // Formdaki select'i özetlenen dökümanla eşle (kullanıcı dostu)
                 $("#documentIdSelect").val(docId);
 
                 var container = $("#aiResponseContainer");
                 var txt = $("#aiResponseText");
 
                 container.removeClass("d-none");
-                $(".btn-quiz-from-summary").hide(); // Önce gizle
+                $(".btn-quiz-from-summary").hide();
                 $('html, body').animate({ scrollTop: container.offset().top - 100 }, 400);
-                txt.html("<span class='text-muted italic'>Özet çıkartılıyor...</span>");
+                txt.html("<span class='text-muted italic'><i class='spinner-border spinner-border-sm'></i> Doküman özetleniyor...</span>");
 
                 $.ajax({
-                    url: '@Url.Action("DocumentSummary", "Course")',
+                    url: '@Url.Action("DocumentSummary", "AiAssistant")',
                     type: 'GET',
-                    data: { courseId: courseId, documentId: docId, modelName: selectedModel }, // model gönderiliyor!
+                    data: getAjaxData({
+                        courseId: '@Model.Id',
+                        documentId: docId
+                    }),
                     success: function (data) {
                         if (data.success) {
                             txt.text(data.response);
-                            $(".btn-quiz-from-summary").fadeIn(); // Özeti aldıktan sonra Quiz butonunu göster
+                            $(".btn-quiz-from-summary").fadeIn();
                         } else {
                             txt.html("<span class='text-danger fw-bold'>⚠️ " + data.response + "</span>");
                         }
                     },
                     error: function () {
-                        txt.html("<span class='text-danger'>Hata meydana geldi.</span>");
+                        txt.html("<span class='text-danger'>Sunucuyla iletişim kurulamadı.</span>");
                     }
                 });
             });
 
-            // 3. Özet sonrası çıkan "Bu Özeti Quiz'e Çevir" Butonu
             $(".btn-quiz-from-summary").click(function() {
                 if(currentSummaryDocId) {
                     resetQuizModal();
@@ -376,7 +431,6 @@
                 }
             });
 
-            // 4. Standart Quiz Üretme Akışı
             $(".btn-quiz").click(function () {
                 var docId = $(this).data("id");
                 resetQuizModal();
@@ -401,31 +455,30 @@
 
             function resetQuizModal() {
                 quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: quizState.documentId };
-                $("#quizProgressText").text("Ayarları seç");
+                $("#quizProgressText").text("Ayarları seçin");
                 $("#quizProgressBar").css("width", "0%");
                 $("#quizSetup").removeClass("d-none");
                 $("#quizLoading").addClass("d-none");
                 $("#quizQuestionArea").addClass("d-none");
                 $("#quizResultArea").addClass("d-none");
-                $("#quizNextBtn").prop("disabled", true).text("Sonraki").removeClass("btn-success").addClass("btn-primary");
+                $("#quizNextBtn").prop("disabled", true).text("Sonraki Soru").removeClass("btn-success").addClass("btn-primary");
             }
 
-            // Quiz Yüklerken Model Parametresini Ekledik
+            // 3. Quiz Üretimi
             function loadQuiz() {
-                var courseId = '@Model.Id';
-                var questionCount = $("#quizQuestionCount").val();
-                var difficulty = $("#quizDifficulty").val();
-                var selectedModel = $("#aiModelSelect").val(); // Dinamik seçimi al
-
                 $("#quizSetup").addClass("d-none");
                 $("#quizLoading").removeClass("d-none");
                 $("#quizStartBtn").prop("disabled", true);
 
                 $.ajax({
-                    url: '@Url.Action("DocumentQuizSession", "Course")',
+                    url: '@Url.Action("DocumentQuizSession", "AiAssistant")',
                     type: 'GET',
-                    // modelName eklendi!
-                    data: { courseId: courseId, documentId: quizState.documentId, questionCount: questionCount, difficulty: difficulty, modelName: selectedModel },
+                    data: getAjaxData({
+                        courseId: '@Model.Id',
+                        documentId: quizState.documentId,
+                        questionCount: $("#quizQuestionCount").val(),
+                        difficulty: $("#quizDifficulty").val()
+                    }),
                     success: function (data) {
                         if (data.success && data.questions && data.questions.length > 0) {
                             quizState.questions = data.questions;
@@ -433,16 +486,15 @@
                             quizState.currentIndex = 0;
                             renderQuizQuestion();
                         } else {
-                            showQuizError(data.response || "Quiz hazırlanamadı.");
+                            showQuizError(data.response || "Yapay zeka quizi oluşturamadı (API hatası olabilir).");
                         }
                     },
                     error: function () {
-                        showQuizError("Teknik hata meydana geldi.");
+                        showQuizError("Teknik ağ hatası meydana geldi.");
                     }
                 });
             }
 
-            // --- Diğer standart render fonksiyonları (değiştirilmedi, yer tasarrufu için özetlendi) ---
             function renderQuizQuestion() {
                 var question = quizState.questions[quizState.currentIndex];
                 quizState.selectedIndex = quizState.answers[quizState.currentIndex];
@@ -456,20 +508,27 @@
                 $("#quizQuestionText").text(question.question);
                 $("#quizNextBtn")
                     .prop("disabled", quizState.selectedIndex === null)
-                    .text(quizState.currentIndex === quizState.questions.length - 1 ? "Bitir" : "Sonraki");
+                    .text(quizState.currentIndex === quizState.questions.length - 1 ? "Quizi Bitir" : "Sonraki Soru")
+                    .toggleClass("btn-success", quizState.currentIndex === quizState.questions.length - 1)
+                    .toggleClass("btn-primary", quizState.currentIndex !== quizState.questions.length - 1);
 
                 var optionsHtml = "";
                 question.options.forEach(function (option, index) {
-                    var selectedClass = quizState.selectedIndex === index ? " selected" : "";
-                    optionsHtml += "<button type='button' class='quiz-option" + selectedClass + "' data-index='" + index + "'><span>" + String.fromCharCode(65 + index) + "</span><strong>" + escapeHtml(option) + "</strong></button>";
+                    var selectedClass = quizState.selectedIndex === index ? " selected bg-primary text-white border-primary" : " bg-white border";
+                    // Buton stilleri güncellendi
+                    optionsHtml += "<button type='button' class='quiz-option w-100 text-start p-3 mb-2 rounded shadow-sm transition-all" + selectedClass + "' data-index='" + index + "'>";
+                    optionsHtml += "<span class='fw-bold me-3 py-1 px-2 rounded-circle bg-light text-dark border'>" + String.fromCharCode(65 + index) + "</span>";
+                    optionsHtml += "<span>" + escapeHtml(option) + "</span></button>";
                 });
                 $("#quizOptions").html(optionsHtml);
             }
 
             $(document).on("click", ".quiz-option", function () {
                 quizState.selectedIndex = parseInt($(this).data("index"));
-                $(".quiz-option").removeClass("selected");
-                $(this).addClass("selected");
+                // Renk ve seçili durumları sıfırla
+                $(".quiz-option").removeClass("selected bg-primary text-white border-primary").addClass("bg-white border");
+                // Tıklanana ekle
+                $(this).removeClass("bg-white").addClass("selected bg-primary text-white border-primary");
                 $("#quizNextBtn").prop("disabled", false);
             });
 
@@ -481,29 +540,37 @@
                     var isCorrect = userAnswer === question.correctIndex;
                     if (isCorrect) score++;
 
-                    reviewHtml += "<div class='quiz-review-item " + (isCorrect ? "correct" : "incorrect") + "'>";
-                    reviewHtml += "<strong>" + (index + 1) + ". " + escapeHtml(question.question) + "</strong>";
-                    reviewHtml += "<p class='mb-1'>Cevabın: " + answerLabel(question, userAnswer) + "</p>";
-                    reviewHtml += "<p class='mb-1'>Doğru cevap: " + answerLabel(question, question.correctIndex) + "</p>";
+                    var bgClass = isCorrect ? "bg-success bg-opacity-10 border-success" : "bg-danger bg-opacity-10 border-danger";
+
+                    reviewHtml += "<div class='quiz-review-item p-3 mb-3 border rounded " + bgClass + "'>";
+                    reviewHtml += "<strong class='d-block mb-2 text-dark'>" + (index + 1) + ". " + escapeHtml(question.question) + "</strong>";
+                    reviewHtml += "<p class='mb-1 small " + (isCorrect ? "text-success" : "text-danger fw-bold") + "'><strong>Senin Cevabın:</strong> " + answerLabel(question, userAnswer) + "</p>";
+                    if (!isCorrect) {
+                        reviewHtml += "<p class='mb-1 small text-success'><strong>Doğru Cevap:</strong> " + answerLabel(question, question.correctIndex) + "</p>";
+                    }
                     reviewHtml += "</div>";
                 });
 
                 $("#quizQuestionArea").addClass("d-none");
                 $("#quizResultArea").removeClass("d-none");
                 $("#quizProgressBar").css("width", "100%");
-                $("#quizScoreText").text(score + " / " + quizState.questions.length);
+
+                var scorePercentage = Math.round((score / quizState.questions.length) * 100);
+                $("#quizScoreText").html(score + " / " + quizState.questions.length + " <span class='fs-4 text-muted'>(" + scorePercentage + "%)</span>");
                 $("#quizReview").html(reviewHtml);
-                $("#quizNextBtn").prop("disabled", true).text("Tamamlandı");
+                $("#quizNextBtn").prop("disabled", true).text("Quiz Tamamlandı");
             }
 
             function showQuizError(message) {
                 $("#quizLoading").addClass("d-none");
                 $("#quizResultArea").removeClass("d-none");
-                $("#quizScoreDetail").text(message);
+                $("#quizScoreText").html("<i class='bi bi-exclamation-triangle text-warning'></i>");
+                $("#quizScoreDetail").html("<span class='text-danger fw-bold'>" + message + "</span>");
+                $("#quizReview").empty();
             }
 
             function answerLabel(question, index) {
-                if (index === null || index === undefined) return "Boş";
+                if (index === null || index === undefined) return "Boş Bırakıldı";
                 return String.fromCharCode(65 + index) + ") " + escapeHtml(question.options[index]);
             }
 
@@ -512,4 +579,20 @@
             }
         });
     </script>
+    <style>
+        /* Quiz Butonu Hover Efektleri */
+        .quiz-option {
+            cursor: pointer;
+            border-width: 2px !important;
+        }
+
+            .quiz-option:hover:not(.selected) {
+                background-color: #f8f9fa !important;
+                border-color: #0d6efd !important;
+            }
+
+        .transition-all {
+            transition: all 0.2s ease-in-out;
+        }
+    </style>
 }
