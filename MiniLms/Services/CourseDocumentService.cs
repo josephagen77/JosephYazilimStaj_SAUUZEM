@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection; // 🎯 YENİ: IServiceScopeFactory için eklendi
 using MiniLms.Data;
 using MiniLms.Interfaces;
 using MiniLms.Models;
@@ -11,7 +12,8 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using UglyToad.PdfPig;
-using DocumentFormat.OpenXml.Packaging; // 🎯 YENİ: Word ve PowerPoint okumak için eklendi
+using DocumentFormat.OpenXml.Packaging;
+using Coravel.Queuing.Interfaces;
 
 namespace MiniLms.Services
 {
@@ -20,15 +22,21 @@ namespace MiniLms.Services
         private readonly ApplicationDbContext _context;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IVectorDbService _vectorDbService;
+        private readonly IQueue _queue;
+        private readonly IServiceScopeFactory _scopeFactory; // 🎯 YENİ: Arka plan thread'leri için DB factory
 
         public CourseDocumentService(
             ApplicationDbContext context,
             IWebHostEnvironment webHostEnvironment,
-            IVectorDbService vectorDbService)
+            IVectorDbService vectorDbService,
+            IQueue queue,
+            IServiceScopeFactory scopeFactory) // 🎯 YENİ: Dependency Injection güncellendi
         {
             _context = context;
             _webHostEnvironment = webHostEnvironment;
             _vectorDbService = vectorDbService;
+            _queue = queue;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task SaveDocumentAsync(int courseId, IFormFile file)
@@ -152,8 +160,6 @@ namespace MiniLms.Services
             }
 
             string extension = Path.GetExtension(physicalPath).ToLowerInvariant();
-
-            // 🎯 GÜNCELLENDİ: Merkezi okuma metodunu kullanıyoruz
             string extractedText = await ExtractTextFromFileAsync(physicalPath, extension);
 
             if (string.IsNullOrWhiteSpace(extractedText))
@@ -186,7 +192,8 @@ namespace MiniLms.Services
                 string extractedText = await ReadDocumentTextAsync(document);
                 if (!string.IsNullOrWhiteSpace(extractedText))
                 {
-                    await AddDocumentTopicLessonAsync(courseId, document, extractedText);
+                    // _context kullanıyoruz çünkü bu metot zaten ana HTTP thread'inde çağrılıyor
+                    await AddDocumentTopicLessonAsync(_context, courseId, document, extractedText);
                 }
             }
 
@@ -235,75 +242,88 @@ namespace MiniLms.Services
             await _context.CourseDocuments.AddAsync(document);
             await _context.SaveChangesAsync();
 
-            // 🎯 GÜNCELLENDİ: Akıllı metin çıkarma
-            string extractedText = string.Empty;
-            try
+            // 🎯 GÜNCELLENDİ: Arka Plan Kuyruğu - Özel veritabanı bağlantısı ile
+            _queue.QueueTask(async () =>
             {
-                extractedText = await ExtractTextFromFileAsync(filePath, extension);
-            }
-            catch
-            {
-                // Okuma hatası olursa boş geç, sistem çökmesin. Dosya indirilmek üzere korunacak.
-            }
-
-            if (!string.IsNullOrWhiteSpace(extractedText))
-            {
-                await AddDocumentTopicLessonAsync(courseId, document, extractedText);
-
-                var lesson = await _context.Lessons
-                    .Where(l => l.CourseId == courseId && l.Title == "Yüklenen Dokümanlar")
-                    .FirstOrDefaultAsync();
-
-                if (lesson == null)
+                try
                 {
-                    int nextWeekNumber = await _context.Lessons
-                        .Where(l => l.CourseId == courseId)
-                        .Select(l => (int?)l.WeekNumber)
-                        .MaxAsync() ?? 0;
+                    // Arka planda çalışan task için güvenli bir bağımsız bağlantı oluştur
+                    using var scope = _scopeFactory.CreateScope();
+                    var scopedDbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-                    lesson = new Lesson
+                    string extractedText = await ExtractTextFromFileAsync(filePath, extension);
+
+                    if (!string.IsNullOrWhiteSpace(extractedText))
                     {
-                        CourseId = courseId,
-                        Title = "Yüklenen Dokümanlar",
-                        WeekNumber = nextWeekNumber + 1
-                    };
-
-                    await _context.Lessons.AddAsync(lesson);
-                    await _context.SaveChangesAsync();
+                        await ProcessDocumentBackgroundAsync(scopedDbContext, courseId, document, extractedText, extension, file.FileName);
+                    }
                 }
-
-                int nextOrder = await _context.LessonContents
-                    .Where(c => c.LessonId == lesson.Id)
-                    .Select(c => (int?)c.Order)
-                    .MaxAsync() ?? 0;
-
-                foreach (string chunk in SplitText(extractedText, 3000))
+                catch (Exception ex)
                 {
-                    nextOrder++;
-
-                    await _context.LessonContents.AddAsync(new LessonContent
-                    {
-                        LessonId = lesson.Id,
-                        Title = $"{Path.GetFileNameWithoutExtension(file.FileName)} - Bölüm {nextOrder}",
-                        Text = chunk,
-                        Body = chunk,
-                        ResourceUrl = document.FilePath,
-                        Order = nextOrder,
-                        Type = extension == ".pdf" ? "Pdf" : "Text",
-                        IsIndexed = false
-                    });
+                    Console.WriteLine($"[Arka Plan Hatası] Doküman işlenemedi: {ex.Message}");
                 }
-
-                await _context.SaveChangesAsync();
-            }
+            });
         }
 
-        private async Task AddDocumentTopicLessonAsync(int courseId, CourseDocument document, string extractedText)
+        // 🎯 GÜNCELLENDİ: Parametre olarak scopedDbContext alır
+        private async Task ProcessDocumentBackgroundAsync(ApplicationDbContext scopedDbContext, int courseId, CourseDocument document, string extractedText, string extension, string fileName)
+        {
+            await AddDocumentTopicLessonAsync(scopedDbContext, courseId, document, extractedText);
+
+            var lesson = await scopedDbContext.Lessons
+                .Where(l => l.CourseId == courseId && l.Title == "Yüklenen Dokümanlar")
+                .FirstOrDefaultAsync();
+
+            if (lesson == null)
+            {
+                int nextWeekNumber = await scopedDbContext.Lessons
+                    .Where(l => l.CourseId == courseId)
+                    .Select(l => (int?)l.WeekNumber)
+                    .MaxAsync() ?? 0;
+
+                lesson = new Lesson
+                {
+                    CourseId = courseId,
+                    Title = "Yüklenen Dokümanlar",
+                    WeekNumber = nextWeekNumber + 1
+                };
+
+                await scopedDbContext.Lessons.AddAsync(lesson);
+                await scopedDbContext.SaveChangesAsync();
+            }
+
+            int nextOrder = await scopedDbContext.LessonContents
+                .Where(c => c.LessonId == lesson.Id)
+                .Select(c => (int?)c.Order)
+                .MaxAsync() ?? 0;
+
+            foreach (string chunk in SplitText(extractedText, 3000))
+            {
+                nextOrder++;
+
+                await scopedDbContext.LessonContents.AddAsync(new LessonContent
+                {
+                    LessonId = lesson.Id,
+                    Title = $"{Path.GetFileNameWithoutExtension(fileName)} - Bölüm {nextOrder}",
+                    Text = chunk,
+                    Body = chunk,
+                    ResourceUrl = document.FilePath,
+                    Order = nextOrder,
+                    Type = extension == ".pdf" ? "Pdf" : "Text",
+                    IsIndexed = false
+                });
+            }
+
+            await scopedDbContext.SaveChangesAsync();
+        }
+
+        // 🎯 GÜNCELLENDİ: Parametre olarak dbContext alır
+        private async Task AddDocumentTopicLessonAsync(ApplicationDbContext dbContext, int courseId, CourseDocument document, string extractedText)
         {
             var topicHeadings = ExtractTopicHeadings(extractedText, document.FileName);
             if (topicHeadings.Count == 0) return;
 
-            int nextWeekNumber = await _context.Lessons
+            int nextWeekNumber = await dbContext.Lessons
                 .Where(l => l.CourseId == courseId && l.Title != "Yüklenen Dokümanlar")
                 .Select(l => (int?)l.WeekNumber)
                 .MaxAsync() ?? 0;
@@ -315,14 +335,14 @@ namespace MiniLms.Services
                 WeekNumber = nextWeekNumber + 1
             };
 
-            await _context.Lessons.AddAsync(topicLesson);
-            await _context.SaveChangesAsync();
+            await dbContext.Lessons.AddAsync(topicLesson);
+            await dbContext.SaveChangesAsync();
 
             int order = 0;
             foreach (string heading in topicHeadings)
             {
                 order++;
-                await _context.LessonContents.AddAsync(new LessonContent
+                await dbContext.LessonContents.AddAsync(new LessonContent
                 {
                     LessonId = topicLesson.Id,
                     Title = heading,
@@ -336,7 +356,6 @@ namespace MiniLms.Services
             }
         }
 
-        // 🎯 YENİ: Merkezi Metin Çıkarma Yönlendiricisi
         private async Task<string> ExtractTextFromFileAsync(string filePath, string extension)
         {
             return extension switch
@@ -345,7 +364,7 @@ namespace MiniLms.Services
                 ".txt" => await File.ReadAllTextAsync(filePath),
                 ".docx" => ExtractTextFromDocx(filePath),
                 ".pptx" => ExtractTextFromPptx(filePath),
-                _ => string.Empty // Excel ve Zip dosyaları atlanır
+                _ => string.Empty
             };
         }
 
@@ -359,7 +378,6 @@ namespace MiniLms.Services
             catch { return string.Empty; }
         }
 
-        // 🎯 YENİ: Word Dosyalarından Metin Çıkarma
         private static string ExtractTextFromDocx(string filePath)
         {
             try
@@ -370,7 +388,6 @@ namespace MiniLms.Services
             catch { return string.Empty; }
         }
 
-        // 🎯 YENİ: PowerPoint Sunumlarından Metin Çıkarma
         private static string ExtractTextFromPptx(string filePath)
         {
             try

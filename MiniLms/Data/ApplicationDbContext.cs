@@ -21,6 +21,9 @@ namespace MiniLms.Data
         public DbSet<Enrollment> Enrollments { get; set; }
         public DbSet<Student> Students { get; set; }
 
+        // 🎯 YENİ: AI Sohbet Geçmişi Tablosu
+        public DbSet<ChatMessage> ChatMessages { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             // 🎯 ÇOK KRİTİK: Identity tablolarının (Roller, Yetkiler, Kullanıcılar) arka plandaki 
@@ -51,6 +54,19 @@ namespace MiniLms.Data
                 .WithMany(c => c.Documents)
                 .HasForeignKey(d => d.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // 🎯 YENİ: ChatMessage İlişkileri
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.User)
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade); // Kullanıcı silinirse mesajları da silinsin
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Course)
+                .WithMany()
+                .HasForeignKey(m => m.CourseId)
+                .OnDelete(DeleteBehavior.Cascade); // Kurs silinirse mesajları da silinsin
         }
     }
 }

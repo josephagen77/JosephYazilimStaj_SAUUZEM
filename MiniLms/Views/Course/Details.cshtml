@@ -91,22 +91,23 @@
                     <h5 class="mb-0 fw-bold"><i class="bi bi-robot"></i> AI Çalışma Asistanı</h5>
                 </div>
                 <div class="card-body bg-light">
-
-                    <!-- 🎯 YENİ: Öğrenciyi Farklı Modelleri Denemeye Teşvik Eden Kutu -->
+                    
                     <div class="alert alert-info py-2 px-3 mb-3 shadow-sm border-info" style="font-size: 0.85rem;">
                         <i class="bi bi-lightbulb-fill text-warning fs-6"></i> <strong>Farklı bir AI modeli deneyin!</strong><br />
                         Varsayılan olarak okulun Gemini sistemini ücretsiz kullanıyorsunuz. Aşağıdan <strong>ChatGPT</strong> veya <strong>Claude</strong>'u seçerek kendi kişisel API anahtarınızla daha gelişmiş modelleri test edebilirsiniz. Nasıl anahtar alacağınızı bilmiyorsanız, modeli seçtiğinizde belirecek olan eğitim videosunu izleyebilirsiniz!
                     </div>
 
-                    <div id="aiResponseContainer" class="p-3 mb-3 border border-2 rounded bg-white shadow-sm d-none">
-                        <span class="fw-bold text-primary d-block mb-2"><i class="bi bi-stars"></i> Asistan Yanıtı:</span>
-                        <div id="aiResponseText" class="small text-dark" style="white-space: pre-wrap; line-height: 1.6;"></div>
-                        <hr />
-                        <div class="text-end mt-2">
-                            <button type="button" class="btn btn-sm btn-outline-primary fw-bold btn-quiz-from-summary" style="display: none;">
-                                <i class="bi bi-question-circle"></i> Bu Özeti Quiz'e Çevir
-                            </button>
+                    <!-- 🎯 YENİ: ChatGPT Benzeri Scroll Edilebilir Sohbet Penceresi -->
+                    <div id="chatWindowContainer" class="p-3 mb-3 border rounded bg-white shadow-sm" style="height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
+                        <div class="text-center text-muted small my-auto" id="chatLoadingState">
+                            <i class="bi bi-chat-dots fs-3 d-block mb-2"></i> Sohbet geçmişi yükleniyor...
                         </div>
+                    </div>
+                    <!-- Quiz Butonu artık chat dışına taşındı -->
+                    <div class="text-end mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold btn-quiz-from-summary" style="display: none;">
+                            <i class="bi bi-question-circle"></i> Son Özeti Quiz'e Çevir
+                        </button>
                     </div>
 
                     <form id="askAiForm" class="bg-white p-3 border rounded shadow-sm">
@@ -135,18 +136,15 @@
                                 </select>
                             </div>
                         </div>
-
-                        <!-- 🎯 YENİ: Gizli API Key Alanı ve YouTube Eğitim Modülü -->
+                        
+                        <!-- Gizli API Key Alanı ve YouTube Eğitim Modülü -->
                         <div id="apiConnectionSection" style="display: none;">
-
-                            <!-- API Giriş Alanı -->
                             <div class="mb-3 p-2 bg-light border border-warning rounded">
                                 <label class="form-label small fw-bold text-dark">Kişisel API Anahtarınız <i class="bi bi-key-fill text-warning"></i></label>
                                 <input type="password" name="userApiKey" id="userApiKeyInput" class="form-control form-control-sm border-warning" placeholder="sk-..." autocomplete="off" />
                                 <small class="text-muted d-block mt-1" style="font-size: 10px;">Gizlilik Uyarısı: Girdiğiniz anahtar sunucuya kaydedilmez, sadece bu oturumdaki istekleriniz için anlık olarak kullanılır.</small>
                             </div>
 
-                            <!-- Dinamik Video ve Talimat Alanı -->
                             <div id="apiKeyHelpContainer" class="mb-3 p-3 bg-white border border-info rounded shadow-sm">
                                 <h6 class="fw-bold text-info mb-2 fs-6" id="helpTitle">API Anahtarı Nasıl Alınır?</h6>
                                 <div class="small text-muted mb-3" id="helpSteps" style="line-height: 1.5;"></div>
@@ -154,7 +152,6 @@
                                     <iframe id="helpVideo" src="" title="YouTube API Key Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                                 </div>
                             </div>
-
                         </div>
 
                         <div class="input-group mt-2">
@@ -231,7 +228,7 @@
     </div>
 </div>
 
-<!-- Quiz Modalı -->
+<!-- Quiz Modalı (Değişmedi) -->
 <div class="modal fade" id="quizModal" tabindex="-1" aria-labelledby="quizModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content quiz-modal">
@@ -299,11 +296,15 @@
 </div>
 
 @section Scripts {
+    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- 🎯 YENİ: Markdown'ı HTML'e çeviren kütüphane -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <script>
         $(document).ready(function () {
 
-            // --- 🎯 YENİ: DİNAMİK YOUTUBE EĞİTİM VERİTABANI ---
+            // --- DİNAMİK YOUTUBE EĞİTİM VERİTABANI ---
             const apiGuides = {
                 chatgpt: {
                     title: "ChatGPT (OpenAI) API Anahtarı Nasıl Alınır?",
@@ -317,51 +318,130 @@
                 }
             };
 
-            // Provider (Model) Değiştiğinde UI'ı Güncelle
             $("#aiProviderSelect").change(function() {
                 const selectedProvider = $(this).val();
-
                 if (selectedProvider === "gemini") {
-                    // Kurumsal Gemini seçilirse her şeyi gizle, şifreyi sil
                     $("#apiConnectionSection").slideUp(300);
                     $("#userApiKeyInput").val("");
                 } else {
-                    // ChatGPT veya Claude seçilirse API ekranını ve Videoyu aç
                     const guideData = apiGuides[selectedProvider];
                     if(guideData) {
                         $("#helpTitle").html('<i class="bi bi-youtube text-danger"></i> ' + guideData.title);
                         $("#helpSteps").html(guideData.steps);
                         $("#helpVideo").attr("src", guideData.videoUrl);
                     }
-
                     $("#apiConnectionSection").slideDown(300);
                 }
             });
 
-            // --- STANDART QUIZ VE AJAX MANTIĞI ---
-            var quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: null };
-            var quizModal = new bootstrap.Modal(document.getElementById("quizModal"));
-            var currentSummaryDocId = null;
+            // 🎯 GÜNCELLENDİ: CHAT UI MANTIĞI & MARKDOWN DESTEĞİ
+            const chatWindow = $("#chatWindowContainer");
+
+            // Güvenlik: Marked kütüphanesini sadece temel HTML etiketlerine izin verecek şekilde yapılandır
+            marked.setOptions({
+                breaks: true,
+                gfm: true
+            });
+
+            function scrollToBottom() {
+                chatWindow.scrollTop(chatWindow[0].scrollHeight);
+            }
+
+            function appendChatMessage(role, content) {
+                $("#chatLoadingState").remove();
+
+                let isUser = role === 'user';
+                let alignment = isUser ? 'text-end' : 'text-start';
+                let bgColor = isUser ? 'bg-primary text-white' : 'bg-light border text-dark';
+                let icon = isUser ? '<i class="bi bi-person-fill"></i> Sen' : '<i class="bi bi-stars text-warning"></i> AI Asistan';
+                let padding = isUser ? 'ms-5' : 'me-5';
+
+                let parsedContent = "";
+
+                if (isUser) {
+                    parsedContent = escapeHtml(content);
+                } else {
+                    // 🎯 YENİ: Yapay Zeka Markdown Temizleyicisi (Rogue Stars & Hashes Fix)
+                    let cleanedContent = content
+                        // 1. Boşluklu kalınlaştırmaları düzeltir ("** Metin **" -> "**Metin**")
+                        .replace(/\*\*\s+/g, '**')
+                        .replace(/\s+\*\*/g, '**')
+                        // 2. Ters yazılmış başlıkları standart formata çevirir ("**### Başlık**" -> "### **Başlık**")
+                        .replace(/\*\*(#{1,6})\s+(.*?)\*\*/g, '$1 **$2**')
+                        // 3. Başlıkların sonuna veya başına yanlışlıkla eklenen fazladan liste yıldızlarını (*) temizler
+                        .replace(/^(#{1,6}.*?)\s*\*+$/gm, '$1');
+
+                    parsedContent = marked.parse(cleanedContent);
+                }
+
+                // (Not: Sohbet baloncukları arasına daha rahat bir görünüm için 'mb-3' boşluğu eklendi)
+                let html = `
+                    <div class="${alignment} ${padding} mb-3">
+                        <div class="small text-muted mb-1">${icon}</div>
+                        <div class="d-inline-block p-3 rounded shadow-sm text-start ${bgColor}" style="word-wrap: break-word; overflow-x: auto;">
+                            ${parsedContent}
+                        </div>
+                    </div>
+                `;
+
+                chatWindow.append(html);
+                scrollToBottom();
+            }
+
+            function appendLoadingIndicator() {
+                let id = 'loading-' + Date.now();
+                let html = `
+                    <div id="${id}" class="text-start me-5">
+                        <div class="small text-muted mb-1"><i class="bi bi-stars text-warning"></i> AI Asistan</div>
+                        <div class="d-inline-block p-2 rounded bg-light border text-dark">
+                            <i class='spinner-grow spinner-grow-sm text-primary'></i> Yanıt hazırlanıyor...
+                        </div>
+                    </div>
+                `;
+                chatWindow.append(html);
+                scrollToBottom();
+                return id;
+            }
+
+            $.ajax({
+                url: '@Url.Action("GetChatHistory", "AiAssistant")',
+                type: 'GET',
+                data: { courseId: '@Model.Id' },
+                success: function (data) {
+                    if (data.success && data.history.length > 0) {
+                        $("#chatLoadingState").remove();
+                        data.history.forEach(function(msg) {
+                            appendChatMessage(msg.role, msg.content);
+                        });
+                    } else {
+                        $("#chatLoadingState").html("<i class='bi bi-chat-dots fs-3 d-block mb-2'></i> Öğrenmeye başlamak için soru sorun.");
+                    }
+                },
+                error: function () {
+                    $("#chatLoadingState").html("Geçmiş yüklenemedi.");
+                }
+            });
 
             function getAjaxData(baseData) {
-                // Seçilen provider ve kişisel API key'i tüm requestlere otomatik ekleyen yardımcı
                 return Object.assign(baseData, {
                     provider: $("#aiProviderSelect").val(),
                     userApiKey: $("#userApiKeyInput").val()
                 });
             }
 
-            // 1. Soru Sorma
             $("#askAiForm").submit(function (e) {
                 e.preventDefault();
                 var btn = $("#btnAskAi");
-                var container = $("#aiResponseContainer");
-                var txt = $("#aiResponseText");
+                var question = $("#aiQuestionInput").val();
 
-                btn.prop("disabled", true).text("İletiliyor...");
-                container.removeClass("d-none");
-                txt.html("<span class='text-muted italic'><i class='spinner-border spinner-border-sm'></i> AI yanıt hazırlıyor...</span>");
+                if(!question.trim()) return;
+
+                appendChatMessage("user", question);
+                $("#aiQuestionInput").val("");
                 $(".btn-quiz-from-summary").hide();
+
+                btn.prop("disabled", true);
+                let loadingId = appendLoadingIndicator();
 
                 $.ajax({
                     url: '@Url.Action("AskAi", "AiAssistant")',
@@ -369,38 +449,34 @@
                     data: getAjaxData({
                         courseId: '@Model.Id',
                         documentId: $("#documentIdSelect").val(),
-                        question: $("#aiQuestionInput").val()
+                        question: question
                     }),
                     success: function (data) {
+                        $("#" + loadingId).remove();
                         if (data.success) {
-                            txt.text(data.response);
+                            appendChatMessage("model", data.response);
                         } else {
-                            txt.html("<span class='text-danger fw-bold'>⚠️ Hata: " + data.response + "</span>");
+                            appendChatMessage("model", "⚠️ Hata: " + data.response);
                         }
                     },
                     error: function () {
-                        txt.html("<span class='text-danger'>Ağ veya sunucu hatası meydana geldi!</span>");
+                        $("#" + loadingId).remove();
+                        appendChatMessage("model", "⚠️ Ağ veya sunucu hatası meydana geldi!");
                     },
                     complete: function () {
-                        btn.prop("disabled", false).html("<i class='bi bi-send'></i> Sor");
+                        btn.prop("disabled", false);
                     }
                 });
             });
 
-            // 2. Özet Çıkarma
             $(".btn-summary").click(function () {
                 var docId = $(this).data("id");
                 currentSummaryDocId = docId;
-
                 $("#documentIdSelect").val(docId);
-
-                var container = $("#aiResponseContainer");
-                var txt = $("#aiResponseText");
-
-                container.removeClass("d-none");
                 $(".btn-quiz-from-summary").hide();
-                $('html, body').animate({ scrollTop: container.offset().top - 100 }, 400);
-                txt.html("<span class='text-muted italic'><i class='spinner-border spinner-border-sm'></i> Doküman özetleniyor...</span>");
+
+                appendChatMessage("user", "Lütfen bu dokümanı özetle.");
+                let loadingId = appendLoadingIndicator();
 
                 $.ajax({
                     url: '@Url.Action("DocumentSummary", "AiAssistant")',
@@ -410,18 +486,25 @@
                         documentId: docId
                     }),
                     success: function (data) {
+                        $("#" + loadingId).remove();
                         if (data.success) {
-                            txt.text(data.response);
+                            appendChatMessage("model", data.response);
                             $(".btn-quiz-from-summary").fadeIn();
                         } else {
-                            txt.html("<span class='text-danger fw-bold'>⚠️ " + data.response + "</span>");
+                            appendChatMessage("model", "⚠️ " + data.response);
                         }
                     },
                     error: function () {
-                        txt.html("<span class='text-danger'>Sunucuyla iletişim kurulamadı.</span>");
+                        $("#" + loadingId).remove();
+                        appendChatMessage("model", "⚠️ Sunucuyla iletişim kurulamadı.");
                     }
                 });
             });
+
+            // --- QUIZ YÖNETİMİ ---
+            var quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: null };
+            var quizModal = new bootstrap.Modal(document.getElementById("quizModal"));
+            var currentSummaryDocId = null;
 
             $(".btn-quiz-from-summary").click(function() {
                 if(currentSummaryDocId) {
@@ -464,7 +547,6 @@
                 $("#quizNextBtn").prop("disabled", true).text("Sonraki Soru").removeClass("btn-success").addClass("btn-primary");
             }
 
-            // 3. Quiz Üretimi
             function loadQuiz() {
                 $("#quizSetup").addClass("d-none");
                 $("#quizLoading").removeClass("d-none");
@@ -515,7 +597,6 @@
                 var optionsHtml = "";
                 question.options.forEach(function (option, index) {
                     var selectedClass = quizState.selectedIndex === index ? " selected bg-primary text-white border-primary" : " bg-white border";
-                    // Buton stilleri güncellendi
                     optionsHtml += "<button type='button' class='quiz-option w-100 text-start p-3 mb-2 rounded shadow-sm transition-all" + selectedClass + "' data-index='" + index + "'>";
                     optionsHtml += "<span class='fw-bold me-3 py-1 px-2 rounded-circle bg-light text-dark border'>" + String.fromCharCode(65 + index) + "</span>";
                     optionsHtml += "<span>" + escapeHtml(option) + "</span></button>";
@@ -525,9 +606,7 @@
 
             $(document).on("click", ".quiz-option", function () {
                 quizState.selectedIndex = parseInt($(this).data("index"));
-                // Renk ve seçili durumları sıfırla
                 $(".quiz-option").removeClass("selected bg-primary text-white border-primary").addClass("bg-white border");
-                // Tıklanana ekle
                 $(this).removeClass("bg-white").addClass("selected bg-primary text-white border-primary");
                 $("#quizNextBtn").prop("disabled", false);
             });
@@ -580,7 +659,6 @@
         });
     </script>
     <style>
-        /* Quiz Butonu Hover Efektleri */
         .quiz-option {
             cursor: pointer;
             border-width: 2px !important;
@@ -593,6 +671,16 @@
 
         .transition-all {
             transition: all 0.2s ease-in-out;
+        }
+
+        /* 🎯 YENİ: Markdown içeriği içindeki öğelerin düzgün görünmesi için CSS */
+        .ai-panel .bg-light p:last-child {
+            margin-bottom: 0;
+        }
+
+        .ai-panel .bg-light ul, .ai-panel .bg-light ol {
+            margin-bottom: 0;
+            padding-left: 1.2rem;
         }
     </style>
 }

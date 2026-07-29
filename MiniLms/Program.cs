@@ -8,10 +8,11 @@ using MiniLms.Mappings;
 using MiniLms.Models;
 using MiniLms.Models.Enums;
 using MiniLms.Middlewares;
+using Coravel; // 🎯 YENİ: Coravel kütüphanesi eklendi
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. MVC Kontrolcü ve Görünüm Servislerini Ekle (Çift olan satırlardan biri temizlendi)
+// 1. MVC Kontrolcü ve Görünüm Servislerini Ekle
 builder.Services.AddControllersWithViews();
 
 // 2. Entity Framework Core ve SQL Server Veritabanı Bağlantısı
@@ -49,6 +50,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Account/AccessDenied";
 });
 
+// 🎯 YENİ: Asenkron Arka Plan Kuyruk (Queue) Servisi Yapılandırması
+builder.Services.AddQueue();
+
 // REPOSITORY VE SERVİS KAYITLARI (BAĞIMLILIK ENJEKSİYONU)
 
 // Generic Repository Desteği
@@ -66,22 +70,21 @@ builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<IEnrollmentRepository, EnrollmentRepository>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 
-// Doküman Modülü Servisleri (Eksik repository kaydı eklendi)
+// Doküman Modülü Servisleri
 builder.Services.AddScoped<ICourseDocumentRepository, CourseDocumentRepository>();
 builder.Services.AddScoped<ICourseDocumentService, CourseDocumentService>();
 
-// Haftalık Konular (Lesson) Katmanı Servisleri (Eksik olanlar eklendi)
+// Haftalık Konular (Lesson) Katmanı Servisleri
 builder.Services.AddScoped<ILessonRepository, LessonRepository>();
 builder.Services.AddScoped<ILessonService, LessonService>();
 builder.Services.AddScoped<ILessonContentRepository, LessonContentRepository>();
 
 // HTTPCLIENT ENTEGRASYONLU AI VE VECTOR SERVİSLERİ
-
 builder.Services.AddHttpClient<IAiService, AiService>();
 builder.Services.AddHttpClient<IVectorDbService, VectorDbService>();
 builder.Services.AddHostedService<VectorSyncService>();
 
-// 4. AUTOMAPPER PROFİL HARİTALAMASINI KAYDET (HATAYI ÇÖZEN SATIR)
+// 4. AUTOMAPPER PROFİL HARİTALAMASINI KAYDET
 builder.Services.AddAutoMapper(typeof(Program));
 
 var app = builder.Build();
@@ -115,7 +118,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Varsayılan Rota Tanımlaması (Uygulama Home/Index ile açılır)
+// Varsayılan Rota Tanımlaması
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");

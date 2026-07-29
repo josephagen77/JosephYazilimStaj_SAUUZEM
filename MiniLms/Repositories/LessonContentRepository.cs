@@ -8,12 +8,12 @@ namespace MiniLms.Repositories
     public class LessonContentRepository
         : GenericRepository<LessonContent>, ILessonContentRepository
     {
-        private readonly ApplicationDbContext _context;
 
+      
         public LessonContentRepository(ApplicationDbContext context)
             : base(context)
         {
-            _context = context;
+            
         }
 
         // Bir dersin tüm içeriklerini getir

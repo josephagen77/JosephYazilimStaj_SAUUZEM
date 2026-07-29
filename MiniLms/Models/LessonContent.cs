@@ -14,6 +14,8 @@
         public string? ResourceUrl { get; set; }
         public int Order { get; set; }
         public bool IsIndexed { get; set; } = false;
-        public string Type { get; internal set; }
+
+        // 🎯 GÜNCELLENDİ: Non-nullable uyarısını çözmek için varsayılan değer atandı
+        public string Type { get; set; } = string.Empty;
     }
 }

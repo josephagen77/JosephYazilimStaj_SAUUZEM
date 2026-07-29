@@ -7,11 +7,10 @@ namespace MiniLms.Repositories
 {
     public class LessonRepository : GenericRepository<Lesson>, ILessonRepository
     {
-        private readonly ApplicationDbContext _context;
-
+       
         public LessonRepository(ApplicationDbContext context) : base(context)
         {
-            _context = context;
+           
         }
 
         public Task DeleteAsync(Lesson lesson)
