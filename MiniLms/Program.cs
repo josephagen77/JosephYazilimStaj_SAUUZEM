@@ -78,6 +78,7 @@ builder.Services.AddScoped<ICourseDocumentService, CourseDocumentService>();
 builder.Services.AddScoped<ILessonRepository, LessonRepository>();
 builder.Services.AddScoped<ILessonService, LessonService>();
 builder.Services.AddScoped<ILessonContentRepository, LessonContentRepository>();
+builder.Services.AddScoped<IStudentAnalyticsService, StudentAnalyticsService>();
 
 // HTTPCLIENT ENTEGRASYONLU AI VE VECTOR SERVİSLERİ
 builder.Services.AddHttpClient<IAiService, AiService>();

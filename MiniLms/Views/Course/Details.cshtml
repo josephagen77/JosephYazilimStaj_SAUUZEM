@@ -22,15 +22,34 @@
         </div>
     }
 
+    <!-- 🎯 GÜNCELLENDİ: Öğretmen Kontrol Paneli (Sınıf Yönetimi ve AI Analizi) eklendi -->
     <section class="page-hero">
-        <div class="d-flex align-items-center gap-3">
-            <span class="hero-icon"><i class="bi bi-journal-richtext"></i></span>
-            <div>
-                <h1 class="page-title">@Model.Title</h1>
-                <p class="page-subtitle">@Model.Description</p>
+        <div class="d-flex justify-content-between align-items-start w-100">
+            <div class="d-flex align-items-center gap-3">
+                <span class="hero-icon"><i class="bi bi-journal-richtext"></i></span>
+                <div>
+                    <h1 class="page-title mb-1">@Model.Title</h1>
+                    <p class="page-subtitle mb-2">@Model.Description</p>
+                    <span class="badge bg-light text-primary border">@Model.CourseCode</span>
+                </div>
             </div>
+
+            @if (User.IsInRole("Teacher"))
+            {
+                <div class="text-end mt-2 d-flex flex-column gap-2 flex-md-row">
+                    <!-- Sınıf Yönetimi Butonu (Öğrenci Ekle/Çıkar) -->
+                    <a asp-controller="Enrollment" asp-action="Manage" asp-route-id="@Model.Id" class="btn btn-light border shadow-sm fw-bold text-primary">
+                        <i class="bi bi-people-fill"></i> Sınıfı Yönet
+                    </a>
+
+                    <!-- AI Analiz Butonu (Öğrencinin zorlandığı yerleri gösterir) -->
+                    <!-- Not: Şu an test için ID'yi (B266200571) sabit gönderiyoruz. -->
+                    <a asp-controller="Analytics" asp-action="StudentInsight" asp-route-userId="B266200571" asp-route-courseId="@Model.Id" class="btn btn-warning shadow-sm fw-bold">
+                        <i class="bi bi-robot"></i> Örnek AI Analizi Gör
+                    </a>
+                </div>
+            }
         </div>
-        <span class="badge bg-light text-primary border">@Model.CourseCode</span>
     </section>
 
     <div class="row">
@@ -91,19 +110,18 @@
                     <h5 class="mb-0 fw-bold"><i class="bi bi-robot"></i> AI Çalışma Asistanı</h5>
                 </div>
                 <div class="card-body bg-light">
-                    
+
                     <div class="alert alert-info py-2 px-3 mb-3 shadow-sm border-info" style="font-size: 0.85rem;">
                         <i class="bi bi-lightbulb-fill text-warning fs-6"></i> <strong>Farklı bir AI modeli deneyin!</strong><br />
                         Varsayılan olarak okulun Gemini sistemini ücretsiz kullanıyorsunuz. Aşağıdan <strong>ChatGPT</strong> veya <strong>Claude</strong>'u seçerek kendi kişisel API anahtarınızla daha gelişmiş modelleri test edebilirsiniz. Nasıl anahtar alacağınızı bilmiyorsanız, modeli seçtiğinizde belirecek olan eğitim videosunu izleyebilirsiniz!
                     </div>
 
-                    <!-- 🎯 YENİ: ChatGPT Benzeri Scroll Edilebilir Sohbet Penceresi -->
                     <div id="chatWindowContainer" class="p-3 mb-3 border rounded bg-white shadow-sm" style="height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
                         <div class="text-center text-muted small my-auto" id="chatLoadingState">
                             <i class="bi bi-chat-dots fs-3 d-block mb-2"></i> Sohbet geçmişi yükleniyor...
                         </div>
                     </div>
-                    <!-- Quiz Butonu artık chat dışına taşındı -->
+
                     <div class="text-end mb-3">
                         <button type="button" class="btn btn-sm btn-outline-primary fw-bold btn-quiz-from-summary" style="display: none;">
                             <i class="bi bi-question-circle"></i> Son Özeti Quiz'e Çevir
@@ -136,7 +154,7 @@
                                 </select>
                             </div>
                         </div>
-                        
+
                         <!-- Gizli API Key Alanı ve YouTube Eğitim Modülü -->
                         <div id="apiConnectionSection" style="display: none;">
                             <div class="mb-3 p-2 bg-light border border-warning rounded">
@@ -228,7 +246,7 @@
     </div>
 </div>
 
-<!-- Quiz Modalı (Değişmedi) -->
+<!-- Quiz Modalı -->
 <div class="modal fade" id="quizModal" tabindex="-1" aria-labelledby="quizModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content quiz-modal">
@@ -298,7 +316,6 @@
 @section Scripts {
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- 🎯 YENİ: Markdown'ı HTML'e çeviren kütüphane -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script>
@@ -334,10 +351,9 @@
                 }
             });
 
-            // 🎯 GÜNCELLENDİ: CHAT UI MANTIĞI & MARKDOWN DESTEĞİ
+            // --- CHAT UI MANTIĞI & MARKDOWN DESTEĞİ ---
             const chatWindow = $("#chatWindowContainer");
 
-            // Güvenlik: Marked kütüphanesini sadece temel HTML etiketlerine izin verecek şekilde yapılandır
             marked.setOptions({
                 breaks: true,
                 gfm: true
@@ -361,20 +377,15 @@
                 if (isUser) {
                     parsedContent = escapeHtml(content);
                 } else {
-                    // 🎯 YENİ: Yapay Zeka Markdown Temizleyicisi (Rogue Stars & Hashes Fix)
                     let cleanedContent = content
-                        // 1. Boşluklu kalınlaştırmaları düzeltir ("** Metin **" -> "**Metin**")
                         .replace(/\*\*\s+/g, '**')
                         .replace(/\s+\*\*/g, '**')
-                        // 2. Ters yazılmış başlıkları standart formata çevirir ("**### Başlık**" -> "### **Başlık**")
                         .replace(/\*\*(#{1,6})\s+(.*?)\*\*/g, '$1 **$2**')
-                        // 3. Başlıkların sonuna veya başına yanlışlıkla eklenen fazladan liste yıldızlarını (*) temizler
                         .replace(/^(#{1,6}.*?)\s*\*+$/gm, '$1');
 
                     parsedContent = marked.parse(cleanedContent);
                 }
 
-                // (Not: Sohbet baloncukları arasına daha rahat bir görünüm için 'mb-3' boşluğu eklendi)
                 let html = `
                     <div class="${alignment} ${padding} mb-3">
                         <div class="small text-muted mb-1">${icon}</div>
@@ -386,7 +397,7 @@
 
                 chatWindow.append(html);
                 scrollToBottom();
-            } 
+            }
 
             function appendLoadingIndicator() {
                 let id = 'loading-' + Date.now();
@@ -673,7 +684,6 @@
             transition: all 0.2s ease-in-out;
         }
 
-        /* 🎯 YENİ: Markdown içeriği içindeki öğelerin düzgün görünmesi için CSS */
         .ai-panel .bg-light p:last-child {
             margin-bottom: 0;
         }

@@ -5,6 +5,8 @@ using MiniLms.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MiniLms.Controllers
@@ -15,22 +17,57 @@ namespace MiniLms.Controllers
         private readonly ICourseService _courseService;
         private readonly ICourseDocumentService _courseDocumentService;
 
+        // 🎯 YENİ: Vektör arama ve embedding için servisler eklendi
+        private readonly IAiService _aiService;
+        private readonly IVectorDbService _vectorDbService;
+
         public CourseController(
             ICourseService courseService,
-            ICourseDocumentService courseDocumentService)
+            ICourseDocumentService courseDocumentService,
+            IAiService aiService, // 🎯 YENİ
+            IVectorDbService vectorDbService) // 🎯 YENİ
         {
             _courseService = courseService;
             _courseDocumentService = courseDocumentService;
+            _aiService = aiService;
+            _vectorDbService = vectorDbService;
         }
 
-        // Tüm kursları ana sayfada listeler
-        public async Task<IActionResult> Index()
+        // 🎯 GÜNCELLENDİ: Arama çubuğu desteği eklendi (Semantic Search)
+        public async Task<IActionResult> Index(string? searchQuery)
         {
             var courses = await _courseService.GetAllCoursesAsync();
+
+            // Eğer öğrenci bir arama yaptıysa Qdrant'a sor
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                // Arama metnini vektöre çevir (Daima varsayılan gemini modeli ile)
+                var searchVector = await _aiService.GetEmbeddingAsync(searchQuery);
+
+                if (searchVector != null && searchVector.Count > 0)
+                {
+                    // Qdrant'tan eşleşen CourseId'leri getir
+                    var matchingCourseIds = await _vectorDbService.SearchSimilarCoursesAsync(searchVector, limit: 10);
+
+                    if (matchingCourseIds.Any())
+                    {
+                        // Sadece vektör veritabanından dönen ID'lerle eşleşen kursları filtrele
+                        courses = courses.Where(c => matchingCourseIds.Contains(c.Id));
+                        ViewBag.SearchQuery = searchQuery;
+                    }
+                    else
+                    {
+                        // Eşleşme yoksa listeyi boşalt
+                        courses = Enumerable.Empty<Course>();
+                        ViewBag.SearchQuery = searchQuery;
+                        ViewBag.NoResults = true;
+                    }
+                }
+            }
+
             return View(courses);
         }
 
-        // Kursun detaylarını ve haftalık konularını (Lesson) getirir
         public async Task<IActionResult> Details(int id)
         {
             var course = await _courseService.GetCourseByIdAsync(id);
@@ -51,7 +88,6 @@ namespace MiniLms.Controllers
 
         // --- COURSE MANAGEMENT (CREATE, EDIT, DELETE) ---
 
-        // GET: Course/Create
         [HttpGet]
         [Authorize(Policy = UserPolicies.TeacherOnly)]
         public IActionResult Create()
@@ -59,7 +95,6 @@ namespace MiniLms.Controllers
             return View(new Course());
         }
 
-        // POST: Course/Create
         [HttpPost]
         [Authorize(Policy = UserPolicies.TeacherOnly)]
         [ValidateAntiForgeryToken]
@@ -70,7 +105,11 @@ namespace MiniLms.Controllers
                 try
                 {
                     await _courseService.AddCourseAsync(course);
-                    TempData["SuccessMessage"] = "Ders başarıyla oluşturuldu.";
+
+                    // 🎯 YENİ: Yeni kurs oluşturulunca, arama için Qdrant'a indeksle
+                    await IndexCourseForSearchAsync(course);
+
+                    TempData["SuccessMessage"] = "Ders başarıyla oluşturuldu ve yapay zeka aramasına eklendi.";
                     return RedirectToAction(nameof(Index));
                 }
                 catch (Exception ex)
@@ -81,7 +120,6 @@ namespace MiniLms.Controllers
             return View(course);
         }
 
-        // GET: Course/Edit/5
         [HttpGet]
         [Authorize(Policy = UserPolicies.TeacherOnly)]
         public async Task<IActionResult> Edit(int id)
@@ -94,7 +132,6 @@ namespace MiniLms.Controllers
             return View(course);
         }
 
-        // POST: Course/Edit/5
         [HttpPost]
         [Authorize(Policy = UserPolicies.TeacherOnly)]
         [ValidateAntiForgeryToken]
@@ -110,6 +147,10 @@ namespace MiniLms.Controllers
                 try
                 {
                     await _courseService.UpdateCourseAsync(course);
+
+                    // 🎯 YENİ: Kurs güncellenince Qdrant indeksini de güncelle
+                    await IndexCourseForSearchAsync(course);
+
                     TempData["SuccessMessage"] = "Ders başarıyla güncellendi.";
                     return RedirectToAction(nameof(Index));
                 }
@@ -121,7 +162,6 @@ namespace MiniLms.Controllers
             return View(course);
         }
 
-        // GET: Course/Delete/5
         [HttpGet]
         [Authorize(Policy = UserPolicies.TeacherOnly)]
         public async Task<IActionResult> Delete(int id)
@@ -134,7 +174,6 @@ namespace MiniLms.Controllers
             return View(course);
         }
 
-        // POST: Course/Delete/5
         [HttpPost, ActionName("Delete")]
         [Authorize(Policy = UserPolicies.TeacherOnly)]
         [ValidateAntiForgeryToken]
@@ -191,6 +230,22 @@ namespace MiniLms.Controllers
             }
 
             return RedirectToAction("Details", new { id = courseId });
+        }
+
+        // 🎯 YENİ: Yardımcı Metod - Kursu AI veritabanına kaydeder
+        private async Task IndexCourseForSearchAsync(Course course)
+        {
+            // Öğrenci arama yaptığında eşleşmesi için kursun bilgilerini birleştiriyoruz
+            string searchData = $"Kurs Adı: {course.Title}. Açıklama: {course.Description}. Kod: {course.CourseCode}";
+
+            // Metni vektöre çevir
+            var courseVector = await _aiService.GetEmbeddingAsync(searchData);
+
+            if (courseVector != null && courseVector.Count > 0)
+            {
+                // Qdrant'a kaydet (Eski kayıt varsa ID üzerinden otomatik günceller)
+                await _vectorDbService.SaveCourseVectorAsync(course.Id, courseVector, searchData);
+            }
         }
     }
 }

@@ -38,13 +38,13 @@ namespace MiniLms.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            var courses = await _courseService.GetAllCoursesAsync();
             var enrollments = await _enrollmentService.GetEnrollmentsByStudentIdAsync(student.Id);
             var enrollmentList = enrollments.ToList();
 
             var model = new StudentCourseListViewModel
             {
-                Courses = courses,
+                // 🎯 GÜNCELLENDİ: "Tüm Dersler" kaldırıldığı için artık veritabanından gereksiz yere çekmiyoruz
+                Courses = new List<Course>(),
                 Enrollments = enrollmentList,
                 EnrolledCourseIds = enrollmentList.Select(e => e.CourseId).ToHashSet()
             };
@@ -52,43 +52,7 @@ namespace MiniLms.Controllers
             return View(model);
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Enroll(int courseId)
-        {
-            var student = await GetCurrentStudentAsync();
-            if (student == null)
-            {
-                TempData["ErrorMessage"] = "Öğrenci kaydınız bulunamadı.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            var course = await _courseService.GetCourseByIdAsync(courseId);
-            if (course == null)
-            {
-                TempData["ErrorMessage"] = "Seçilen ders bulunamadı.";
-                return RedirectToAction(nameof(Index));
-            }
-
-            try
-            {
-                await _enrollmentService.EnrollStudentAsync(new Enrollment
-                {
-                    StudentId = student.Id,
-                    CourseId = courseId,
-                    EnrollmentDate = DateTime.Now
-                });
-
-                TempData["SuccessMessage"] = $"{course.CourseCode} dersine kayıt oldunuz.";
-            }
-            catch (InvalidOperationException ex)
-            {
-                TempData["ErrorMessage"] = ex.Message;
-            }
-
-            return RedirectToAction(nameof(Index));
-        }
-
+        // Öğrencinin ders kaydını silmesi (opsiyonel olarak bıraktım)
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Unenroll(int courseId)

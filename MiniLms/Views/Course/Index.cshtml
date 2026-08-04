@@ -23,6 +23,38 @@
         }
     </section>
 
+    <!-- 🎯 YENİ: Yapay Zeka Destekli Arama Çubuğu -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body bg-light rounded">
+            <form asp-action="Index" method="get" class="d-flex gap-2 align-items-center">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-primary"><i class="bi bi-stars text-warning"></i></span>
+                    <input type="text" name="searchQuery" value="@ViewBag.SearchQuery" class="form-control border-primary" placeholder="Yapay zeka ile ders arayın... (Örn: 'Veri analizi ve makine öğrenmesi')" />
+                    <button type="submit" class="btn btn-primary fw-bold px-4">Ara</button>
+                </div>
+                @if (!string.IsNullOrEmpty(ViewBag.SearchQuery as string))
+                {
+                    <a asp-action="Index" class="btn btn-outline-secondary text-nowrap">Temizle</a>
+                }
+            </form>
+            <small class="text-muted d-block mt-2"><i class="bi bi-info-circle"></i> Sadece ders kodunu değil, öğrenmek istediğiniz konuları yazarak anlamsal arama yapabilirsiniz.</small>
+        </div>
+    </div>
+
+    <!-- 🎯 YENİ: Arama Sonucu Bilgilendirmesi -->
+    @if (!string.IsNullOrEmpty(ViewBag.SearchQuery as string))
+    {
+        <div class="alert alert-info py-2 shadow-sm">
+            <strong>"@ViewBag.SearchQuery"</strong> kavramına anlamsal olarak en yakın kurslar listeleniyor.
+        </div>
+    }
+    @if (ViewBag.NoResults == true)
+    {
+        <div class="alert alert-warning py-2 shadow-sm">
+            Aradığınız anlama uyan herhangi bir ders bulunamadı. Lütfen farklı kavramlar deneyin.
+        </div>
+    }
+
     <div class="card table-card">
         <div class="card-body p-0">
             <table class="table table-hover table-striped mb-0">
@@ -39,7 +71,16 @@
                     @if (!Model.Any())
                     {
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">Sistemde henüz açılmış bir ders bulunmamaktadır.</td>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                @if (ViewBag.NoResults == true)
+                                {
+                                    <span>Bu kavrama uygun ders yok.</span>
+                                }
+                                else
+                                {
+                                    <span>Sistemde henüz açılmış bir ders bulunmamaktadır.</span>
+                                }
+                            </td>
                         </tr>
                     }
                     else

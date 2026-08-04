@@ -1,0 +1,67 @@
+﻿@{
+    ViewData["Title"] = "Öğrenci Yapay Zeka Analizi";
+}
+
+<div class="container mt-4">
+    <!-- Başlık ve Geri Dön Butonu -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-person-lines-fill text-primary"></i> Öğrenci İlerleme Analizi</h2>
+            <p class="text-muted mb-0">Öğrenci: <strong>@ViewBag.UserId</strong> | Ders ID: <strong>@ViewBag.CourseId</strong></p>
+        </div>
+        <a asp-controller="Course" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Derslere Dön
+        </a>
+    </div>
+
+    <!-- AI Rapor Kartı -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white d-flex align-items-center gap-2 py-3">
+            <i class="bi bi-robot text-warning fs-5"></i>
+            <h5 class="mb-0 fw-bold">Yapay Zeka İçgörü Raporu</h5>
+        </div>
+        <div class="card-body bg-light p-4">
+
+            <!-- Güvenlik için ham C# markdown metnini gizli bir alanda tutuyoruz -->
+            <textarea id="rawMarkdown" style="display:none;">@ViewBag.ReportMarkdown</textarea>
+
+            <!-- İşlenmiş ve temizlenmiş HTML buraya enjekte edilecek -->
+            <div id="reportContainer" class="p-4 bg-white rounded border shadow-sm" style="font-size: 1.05rem; line-height: 1.6;">
+                <div class="text-center text-muted">
+                    <div class="spinner-border text-primary mb-2" role="status"></div>
+                    <p>Rapor işleniyor...</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Sitenizde marked.js _Layout'ta yoksa diye garanti olarak buraya ekliyoruz -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Gizli alandan AI'ın ürettiği ham metni al
+            let rawText = $("#rawMarkdown").val();
+
+            if (rawText) {
+                // 🎯 9. Günde yazdığımız Markdown Temizleyici (Rogue Stars & Hashes Fix)
+                let cleanedContent = rawText
+                    .replace(/\*\*\s+/g, '**')
+                    .replace(/\s+\*\*/g, '**')
+                    .replace(/\*\*(#{1,6})\s+(.*?)\*\*/g, '$1 **$2**')
+                    .replace(/^(#{1,6}.*?)\s*\*+$/gm, '$1');
+
+                // Marked.js ile HTML'e çevir
+                let htmlContent = marked.parse(cleanedContent);
+
+                // Ekrana bas
+                $("#reportContainer").html(htmlContent);
+            } else {
+                $("#reportContainer").html("<div class='alert alert-warning'>Analiz raporu oluşturulamadı veya veri eksik.</div>");
+            }
+        });
+    </script>
+}

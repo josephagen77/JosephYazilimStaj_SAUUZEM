@@ -1,7 +1,7 @@
 ﻿@model IEnumerable<MiniLms.Models.Enrollment>
-
 @{
     ViewData["Title"] = "Ders Kayıt Listesi";
+    var courses = ViewBag.Courses as IEnumerable<MiniLms.Models.Course>;
 }
 
 <div>
@@ -9,13 +9,59 @@
         <div class="d-flex align-items-center gap-3">
             <span class="hero-icon"><i class="bi bi-person-lines-fill"></i></span>
             <div>
-                <h1 class="page-title">Ders Kayıt Listesi</h1>
-                <p class="page-subtitle">Öğrenci ve ders eşleşmelerini hızlıca takip edin.</p>
+                <h1 class="page-title">Ders Kayıt Yönetimi</h1>
+                <p class="page-subtitle">Sınıf mevcutlarını görün veya bireysel kayıt işlemlerini takip edin.</p>
             </div>
         </div>
-        <a asp-action="Create" class="btn btn-success"><i class="bi bi-plus-circle"></i> Yeni Ders Kaydı Yap</a>
+        <a asp-action="Create" class="btn btn-success"><i class="bi bi-plus-circle"></i> Bireysel Ders Kaydı Yap</a>
     </section>
 
+    <!-- 🎯 YENİ: Derslere Göre Sınıf Mevcutları (Öğretmen Görünümü) -->
+    <h3 class="section-title mb-3">Sınıf Listeleri ve Mevcutlar</h3>
+    <div class="card table-card mb-5">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-primary">
+                    <tr>
+                        <th>Ders Kodu</th>
+                        <th>Ders Adı</th>
+                        <th class="text-center">Kayıtlı Öğrenci Sayısı</th>
+                        <th class="text-center">İşlemler</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (courses != null && courses.Any())
+                    {
+                        @foreach (var course in courses)
+                        {
+                            var studentCount = Model.Count(e => e.CourseId == course.Id);
+                            <tr>
+                                <td class="fw-bold text-danger">@course.CourseCode</td>
+                                <td class="fw-bold">@course.Title</td>
+                                <td class="text-center">
+                                    <span class="badge @(studentCount > 0 ? "bg-success" : "bg-secondary") fs-6">
+                                        <i class="bi bi-people-fill"></i> @studentCount Öğrenci
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <a asp-action="Manage" asp-route-id="@course.Id" class="btn btn-primary btn-sm">
+                                        <i class="bi bi-gear"></i> Sınıfı Yönet
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="4" class="text-center py-3 text-muted">Sistemde kayıtlı ders bulunamadı.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MEVCUT: Orijinal Tüm Kayıtlar Listesi (Log/Geçmiş Görüntüleme) -->
+    <h3 class="section-title mb-3">Son Kayıt Hareketleri (Tüm Liste)</h3>
     <div class="card table-card">
         <div class="card-body p-0">
             <table class="table table-hover table-striped mb-0">
@@ -38,7 +84,7 @@
                     }
                     else
                     {
-                        @foreach (var item in Model)
+                        @foreach (var item in Model.OrderByDescending(e => e.EnrollmentDate))
                         {
                             <tr>
                                 <td class="fw-bold text-secondary">@item.Student?.StudentNumber</td>
@@ -47,9 +93,11 @@
                                 <td>@item.Course?.Title</td>
                                 <td>@item.EnrollmentDate.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</td>
                                 <td class="text-center">
-                                    <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-danger btn-sm">
-                                        <i class="bi bi-trash"></i> Kaydı Sil
-                                    </a>
+                                    <form asp-action="Delete" asp-route-id="@item.Id" method="post" class="d-inline">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Bu kaydı silmek istediğinize emin misiniz?');">
+                                            <i class="bi bi-trash"></i> Kaydı Sil
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         }

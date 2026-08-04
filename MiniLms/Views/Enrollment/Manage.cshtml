@@ -1,0 +1,103 @@
+﻿@model IEnumerable<MiniLms.Models.Enrollment>
+@{
+    var course = ViewBag.Course as MiniLms.Models.Course;
+    var availableStudents = ViewBag.AvailableStudents as List<MiniLms.Models.Student>;
+    ViewData["Title"] = course?.Title + " - Sınıf Yönetimi";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-gear text-primary"></i> @course?.CourseCode - Sınıf Yönetimi</h2>
+            <p class="text-muted mb-0"><strong>@course?.Title</strong> dersine kayıtlı öğrencileri yönetin.</p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Listeye Dön
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- SOL: Derse Kayıtlı Öğrenciler -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-success text-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-check-circle"></i> Kayıtlı Öğrenciler (@Model.Count())</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th>Öğrenci No</th>
+                                <th>Ad Soyad</th>
+                                <th>Kayıt Tarihi</th>
+                                <th class="text-end">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!Model.Any())
+                            {
+                                <tr><td colspan="4" class="text-center py-4 text-muted">Bu derse henüz kimse kayıtlı değil.</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var enrollment in Model.OrderByDescending(e => e.EnrollmentDate))
+                                {
+                                    <tr>
+                                        <td class="fw-bold">@enrollment.Student?.StudentNumber</td>
+                                        <td>@enrollment.Student?.FirstName @enrollment.Student?.LastName</td>
+                                        <td>@enrollment.EnrollmentDate.ToString("dd.MM.yyyy")</td>
+                                        <td class="text-end">
+                                            <form asp-action="QuickRemoveStudent" method="post" class="d-inline">
+                                                <input type="hidden" name="courseId" value="@course?.Id" />
+                                                <input type="hidden" name="enrollmentId" value="@enrollment.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" onclick="return confirm('Bu öğrenciyi dersten çıkarmak istediğinize emin misiniz?');">
+                                                    <i class="bi bi-person-dash"></i> Çıkar
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- SAĞ: Derse Eklenebilecek Öğrenciler -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white py-3">
+                    <h5 class="mb-0"><i class="bi bi-person-plus"></i> Hızlı Öğrenci Ekle</h5>
+                </div>
+                <div class="card-body bg-light p-3">
+                    @if (availableStudents == null || !availableStudents.Any())
+                    {
+                        <div class="alert alert-success py-2 mb-0 small">
+                            <i class="bi bi-check-all"></i> Sistemdeki tüm öğrenciler bu derse kayıtlı.
+                        </div>
+                    }
+                    else
+                    {
+                        <form asp-action="QuickAddStudent" method="post">
+                            <input type="hidden" name="courseId" value="@course?.Id" />
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold text-muted">Öğrenci Seçin</label>
+                                <select class="form-select border-primary" name="studentId" required>
+                                    <option value="">-- Listeden Seçin --</option>
+                                    @foreach (var s in availableStudents)
+                                    {
+                                        <option value="@s.Id">@s.StudentNumber - @s.FirstName @s.LastName</option>
+                                    }
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
+                                <i class="bi bi-plus-circle"></i> Sınıfa Ekle
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

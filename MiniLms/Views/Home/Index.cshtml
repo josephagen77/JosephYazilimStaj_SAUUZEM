@@ -2,57 +2,137 @@
     ViewData["Title"] = "Ana Sayfa";
 }
 
-<section class="page-hero">
-    <div class="d-flex align-items-center gap-3">
-        <span class="hero-icon"><i class="bi bi-grid-1x2-fill"></i></span>
-        <div>
-            <h1 class="page-title">MiniLms Kontrol Paneli</h1>
-            <p class="page-subtitle">Dersleri, öğrencileri, kayıtları ve ders kaynaklarını tek yerden yönetin.</p>
+<div class="container mt-5">
+    <!-- Karşılama Alanı -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-lg-8">
+            <h1 class="display-4 fw-bold text-primary mb-3">MiniLMS'e Hoş Geldiniz</h1>
+            <p class="lead text-muted mb-4">
+                Yapay zeka destekli, modern ve dinamik öğrenim yönetim sistemi.
+                Derslerinizi takip edin, dokümanlarınızı yükleyin ve akıllı asistan ile öğrenme sürecinizi hızlandırın.
+            </p>
+
+            <!-- 🎯 DÜZELTİLDİ: Null referans hatasını önlemek için '?' eklendi -->
+            @if (User.Identity?.IsAuthenticated != true)
+            {
+                <div class="d-flex gap-3">
+                    <a asp-controller="Account" asp-action="Login" class="btn btn-primary btn-lg fw-bold px-4 shadow-sm">
+                        <i class="bi bi-box-arrow-in-right"></i> Sisteme Giriş Yap
+                    </a>
+                    <a asp-controller="Account" asp-action="Register" class="btn btn-outline-secondary btn-lg fw-bold px-4">
+                        <i class="bi bi-person-plus"></i> Kayıt Ol
+                    </a>
+                </div>
+            }
+        </div>
+        <div class="col-lg-4 d-none d-lg-block text-center">
+            <i class="bi bi-mortarboard text-primary" style="font-size: 10rem; opacity: 0.8;"></i>
         </div>
     </div>
-    <a class="btn btn-primary" asp-controller="Course" asp-action="Index">
-        <i class="bi bi-book"></i> Derslere Git
-    </a>
-</section>
 
-<div class="metric-grid mb-4">
-    <div class="metric-tile">
-        <i class="bi bi-book-half"></i>
-        <span class="metric-value">Ders</span>
-        <span class="metric-label">Müfredat ve kaynak yönetimi</span>
-    </div>
-    <div class="metric-tile">
-        <i class="bi bi-people-fill"></i>
-        <span class="metric-value">Öğrenci</span>
-        <span class="metric-label">Profil ve kayıt takibi</span>
-    </div>
-    <div class="metric-tile">
-        <i class="bi bi-cpu-fill"></i>
-        <span class="metric-value">RAG</span>
-        <span class="metric-label">Doküman tabanlı ders asistanı</span>
-    </div>
+    <!-- Hızlı İşlem Paneli (Sadece Giriş Yapanlar İçin) -->
+    <!-- 🎯 DÜZELTİLDİ: Null referans hatasını önlemek için '?' eklendi -->
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <h3 class="fw-bold mb-4 text-dark">Hızlı İşlem Paneli</h3>
+        <div class="row g-4">
+
+            <!-- HERKES İÇİN (Ders Kataloğu) -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm border-0 border-top border-4 border-primary hover-card">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="bi bi-book text-primary" style="font-size: 3rem;"></i>
+                        </div>
+                        <h4 class="fw-bold">Ders Kataloğu</h4>
+                        <p class="text-muted small">Sistemde açılan tüm dersleri, içeriklerini ve kredilerini görüntüleyin.</p>
+                        <a asp-controller="Course" asp-action="Index" class="btn btn-outline-primary w-100 fw-bold">Dersleri İncele</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SADECE ÖĞRENCİLER İÇİN -->
+            @if (User.IsInRole("Student"))
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm border-0 border-top border-4 border-success hover-card">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="bi bi-journal-check text-success" style="font-size: 3rem;"></i>
+                            </div>
+                            <h4 class="fw-bold">Kayıtlı Derslerim</h4>
+                            <p class="text-muted small">Kayıtlı olduğunuz derslere girin ve yapay zeka asistanı ile çalışmaya başlayın.</p>
+                            <a asp-controller="StudentCourses" asp-action="Index" class="btn btn-outline-success w-100 fw-bold">Derslerime Git</a>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- SADECE ÖĞRETMENLER İÇİN -->
+            @if (User.IsInRole("Teacher"))
+            {
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm border-0 border-top border-4 border-warning hover-card">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="bi bi-people text-warning" style="font-size: 3rem;"></i>
+                            </div>
+                            <h4 class="fw-bold">Öğrenci Yönetimi</h4>
+                            <p class="text-muted small">Sisteme kayıtlı öğrencileri görüntüleyin ve profillerini düzenleyin.</p>
+                            <a asp-controller="Student" asp-action="Index" class="btn btn-outline-warning w-100 text-dark fw-bold">Öğrencileri Yönet</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm border-0 border-top border-4 border-info hover-card">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3">
+                                <i class="bi bi-pen text-info" style="font-size: 3rem;"></i>
+                            </div>
+                            <h4 class="fw-bold">Sınıf Yönetimi</h4>
+                            <p class="text-muted small">Hangi öğrencinin hangi derse kayıtlı olduğunu yönetin ve sınıfları düzenleyin.</p>
+                            <a asp-controller="Enrollment" asp-action="Index" class="btn btn-outline-info w-100 text-dark fw-bold">Ders Kayıtları</a>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- AI Özelliği Vurgulama (Herkes) -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 shadow-sm border-0 border-top border-4 border-danger hover-card">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="bi bi-robot text-danger" style="font-size: 3rem;"></i>
+                        </div>
+                        <h4 class="fw-bold">AI Asistan Modülü</h4>
+                        <p class="text-muted small">Yapay zeka analiz raporları, doküman özetleme ve dinamik quiz sistemini deneyimleyin.</p>
+                        @if (User.IsInRole("Student"))
+                        {
+                            <a asp-controller="StudentCourses" asp-action="Index" class="btn btn-outline-danger w-100 fw-bold">Hemen Dene</a>
+                        }
+                        else
+                        {
+                            <a asp-controller="Course" asp-action="Index" class="btn btn-outline-danger w-100 fw-bold">Hemen Dene</a>
+                        }
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    }
 </div>
 
-<div class="quick-actions">
-    <a class="quick-action" asp-controller="Course" asp-action="Index">
-        <i class="bi bi-journal-text"></i>
-        <span>
-            <strong>Dersleri İncele</strong>
-            <span>Ders detayları, haftalık içerikler ve dokümanlar</span>
-        </span>
-    </a>
-    <a class="quick-action" asp-controller="Student" asp-action="Index">
-        <i class="bi bi-person-lines-fill"></i>
-        <span>
-            <strong>Öğrenciler</strong>
-            <span>Öğrenci kayıtlarını düzenleyin</span>
-        </span>
-    </a>
-    <a class="quick-action" asp-controller="Enrollment" asp-action="Index">
-        <i class="bi bi-clipboard-check"></i>
-        <span>
-            <strong>Ders Kayıtları</strong>
-            <span>Öğrenci ve ders eşleşmelerini takip edin</span>
-        </span>
-    </a>
-</div>
+@section Scripts {
+    <style>
+        .hover-card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            cursor: default;
+        }
+
+            .hover-card:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+            }
+    </style>
+}

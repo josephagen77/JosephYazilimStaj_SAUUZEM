@@ -4,6 +4,11 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 
+@{
+    // 🎯 YENİ: Kullanıcının şu an hangi menüde olduğunu tespit et
+    var currentController = ViewContext.RouteData.Values["Controller"]?.ToString();
+}
+
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
@@ -13,6 +18,15 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/MiniLms.styles.css" asp-append-version="true" />
+
+    <style>
+        /* 🎯 YENİ: Aktif menü butonunun rengini ve kalınlığını ayarla */
+        .app-navbar .nav-link.active-nav {
+            color: #0d6efd !important; /* Mavi renk */
+            font-weight: 800;
+            border-bottom: 2px solid #0d6efd;
+        }
+    </style>
 </head>
 
 <body>
@@ -30,27 +44,27 @@
                 <div class="navbar-collapse collapse justify-content-between">
                     <ul class="navbar-nav flex-grow-1 gap-lg-1">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">
+                            <a class="nav-link @(currentController == "Home" ? "active-nav" : "text-dark")" asp-area="" asp-controller="Home" asp-action="Index">
                                 <i class="bi bi-house-door"></i> Ana Sayfa
                             </a>
                         </li>
                         @if (User.IsInRole("Teacher"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Student" asp-action="Index">
+                                <a class="nav-link @(currentController == "Student" ? "active-nav" : "text-dark")" asp-area="" asp-controller="Student" asp-action="Index">
                                     <i class="bi bi-people"></i> Öğrenciler
                                 </a>
                             </li>
                         }
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Course" asp-action="Index">
+                            <a class="nav-link @(currentController == "Course" ? "active-nav" : "text-dark")" asp-area="" asp-controller="Course" asp-action="Index">
                                 <i class="bi bi-book"></i> Dersler
                             </a>
                         </li>
                         @if (User.IsInRole("Student"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="StudentCourses" asp-action="Index">
+                                <a class="nav-link @(currentController == "StudentCourses" ? "active-nav" : "text-dark")" asp-area="" asp-controller="StudentCourses" asp-action="Index">
                                     <i class="bi bi-journal-check"></i> Derslerim
                                 </a>
                             </li>
@@ -58,7 +72,7 @@
                         @if (User.IsInRole("Teacher"))
                         {
                             <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Enrollment" asp-action="Index">
+                                <a class="nav-link @(currentController == "Enrollment" ? "active-nav" : "text-dark")" asp-area="" asp-controller="Enrollment" asp-action="Index">
                                     <i class="bi bi-pen"></i> Ders Kayıtları
                                 </a>
                             </li>
@@ -74,8 +88,8 @@
                         {
                             var currentUser = await UserManager.GetUserAsync(User);
                             var roles = currentUser == null
-                                ? new List<string>()
-                                : await UserManager.GetRolesAsync(currentUser);
+                            ? new List<string>()
+                            : await UserManager.GetRolesAsync(currentUser);
 
                             <li class="nav-item d-flex align-items-center">
                                 <span class="navbar-text text-dark small">
@@ -129,39 +143,36 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
         $(document).ready(function () {
-        // Herhangi bir sayfada TempData["SuccessMessage"] tetiklenirse sağ üstte Toast gösterir
         @if (TempData["SuccessMessage"] != null)
         {
-            <text>
-                Swal.fire({
-                icon: 'success',
-                title: 'Başarılı!',
-                text: '@Html.Raw(TempData["SuccessMessage"])',
-                timer: 3000,
-                showConfirmButton: false,
-                toast: true,
-                position: 'top-end'
-                });
-            </text>
+                <text>
+                    Swal.fire({
+                    icon: 'success',
+                    title: 'Başarılı!',
+                    text: '@Html.Raw(TempData["SuccessMessage"])',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end'
+                    });
+                </text>
         }
 
-        // Herhangi bir sayfada TempData["ErrorMessage"] tetiklenirse ekrana büyük Hata Modal'ı basar
         @if (TempData["ErrorMessage"] != null)
         {
-            <text>
-                Swal.fire({
-                icon: 'error',
-                title: 'Hata!',
-                text: '@Html.Raw(TempData["ErrorMessage"])',
-                confirmButtonText: 'Tamam',
-                confirmButtonColor: '#dc3545'
-                });
-            </text>
+                <text>
+                    Swal.fire({
+                    icon: 'error',
+                    title: 'Hata!',
+                    text: '@Html.Raw(TempData["ErrorMessage"])',
+                    confirmButtonText: 'Tamam',
+                    confirmButtonColor: '#dc3545'
+                    });
+                </text>
         }
         });
     </script>

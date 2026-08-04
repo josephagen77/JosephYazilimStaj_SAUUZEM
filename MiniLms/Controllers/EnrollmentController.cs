@@ -7,6 +7,7 @@ using MiniLms.Models.Enums;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace MiniLms.Controllers
 {
@@ -31,18 +32,20 @@ namespace MiniLms.Controllers
         public async Task<IActionResult> Index()
         {
             var enrollments = await _enrollmentService.GetAllEnrollmentsAsync();
+
+            // 🎯 YENİ: Sınıf listesini ve öğrenci sayılarını göstermek için tüm kursları çekip ViewBag ile gönderiyoruz.
+            var courses = await _courseService.GetAllCoursesAsync();
+            ViewBag.Courses = courses;
+
             return View(enrollments);
         }
 
         // GET: Enrollment/Create
         public async Task<IActionResult> Create()
         {
-            // Dropdown listelerini doldurmak için aktif öğrenci ve ders listelerini çekiyoruz
             var students = await _studentService.GetAllStudentsAsync();
             var courses = await _courseService.GetAllCoursesAsync();
 
-            // ViewBag üzerinden arayüzdeki <select> elementlerine veri bağlıyoruz.
-            // Kullanıcının daha rahat seçmesi için formatı "ÖğrenciNo - Ad Soyad" ve "DersKodu - DersAdı" haline getirdik.
             ViewBag.StudentId = new SelectList(students.Select(s => new { Id = s.Id, DisplayText = $"{s.StudentNumber} - {s.FirstName} {s.LastName}" }), "Id", "DisplayText");
             ViewBag.CourseId = new SelectList(courses.Select(c => new { Id = c.Id, DisplayText = $"{c.CourseCode} - {c.Title}" }), "Id", "DisplayText");
 
@@ -54,25 +57,21 @@ namespace MiniLms.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Enrollment enrollment)
         {
-            // 1. KRİTİK DOKUNUŞ: İlişkisel 'Student' ve 'Course' nesnelerinin boş gelmesi nedeniyle 
-            // ModelState.IsValid kontrolünün gizlice False'a düşmesini engellemek için bunları doğrulamadan muaf tutuyoruz.
             ModelState.Remove("Student");
             ModelState.Remove("Course");
 
-            // 2. KRİTİK DOKUNUŞ: Kayıt tarihini formdan boş almamak adına tam butona basıldığı an atıyoruz.
             enrollment.EnrollmentDate = DateTime.Now;
 
             if (ModelState.IsValid)
             {
                 try
                 {
-                    // Servis katmanında yazdığımız "Mükerrer Kayıt Kontrolü" iş kuralını tetikliyoruz
                     await _enrollmentService.EnrollStudentAsync(enrollment);
+                    TempData["SuccessMessage"] = "Ders kaydı başarıyla oluşturuldu.";
                     return RedirectToAction(nameof(Index));
                 }
                 catch (InvalidOperationException ex)
                 {
-                    // "Bu öğrenci bu derse zaten kayıtlı!" hatası gelirse yakalayıp ekranın üstünde gösteriyoruz
                     ModelState.AddModelError(string.Empty, ex.Message);
                 }
                 catch (Exception)
@@ -81,7 +80,6 @@ namespace MiniLms.Controllers
                 }
             }
 
-            // Eğer validation başarısızsa veya iş kuralı hatası fırlatıldıysa dropdown listelerinin bozulmaması için yeniden dolduruyoruz
             var students = await _studentService.GetAllStudentsAsync();
             var courses = await _courseService.GetAllCoursesAsync();
 
@@ -110,14 +108,87 @@ namespace MiniLms.Controllers
             try
             {
                 await _enrollmentService.RemoveEnrollmentAsync(id);
+                TempData["SuccessMessage"] = "Ders kaydı silindi.";
                 return RedirectToAction(nameof(Index));
             }
             catch (Exception)
             {
-                ViewBag.ErrorMessage = "Ders kaydı silinirken bir hata meydana geldi.";
+                TempData["ErrorMessage"] = "Ders kaydı silinirken bir hata meydana geldi.";
                 var enrollment = await _enrollmentService.GetEnrollmentByIdAsync(id);
                 return View(enrollment);
             }
+        }
+
+        // ---------------------------------------------------------
+        // 🎯 YENİ: KURS BAZLI SINIF YÖNETİMİ (MANAGE EKRANI İÇİN)
+        // ---------------------------------------------------------
+
+        // GET: Enrollment/Manage/5 (Bir kursun içine girip öğrencileri yönetme)
+        public async Task<IActionResult> Manage(int id)
+        {
+            var course = await _courseService.GetCourseByIdAsync(id);
+            if (course == null) return NotFound();
+
+            // Tüm kayıtları al ve sadece bu kursa ait olanları filtrele
+            var allEnrollments = await _enrollmentService.GetAllEnrollmentsAsync();
+            var courseEnrollments = allEnrollments.Where(e => e.CourseId == id).ToList();
+
+            // Bu kursa henüz kayıt olmamış öğrencileri bul (Sağ taraftaki 'Ekle' listesi için)
+            var allStudents = await _studentService.GetAllStudentsAsync();
+            var enrolledStudentIds = courseEnrollments.Select(e => e.StudentId).ToList();
+            var availableStudents = allStudents.Where(s => !enrolledStudentIds.Contains(s.Id)).ToList();
+
+            ViewBag.Course = course;
+            ViewBag.AvailableStudents = availableStudents;
+
+            return View(courseEnrollments);
+        }
+
+        // POST: Enrollment/QuickAddStudent (Manage sayfasından hızlı ekleme)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> QuickAddStudent(int courseId, int studentId)
+        {
+            try
+            {
+                var newEnrollment = new Enrollment
+                {
+                    CourseId = courseId,
+                    StudentId = studentId,
+                    EnrollmentDate = DateTime.Now
+                };
+
+                await _enrollmentService.EnrollStudentAsync(newEnrollment);
+                TempData["SuccessMessage"] = "Öğrenci sınıfa eklendi.";
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["ErrorMessage"] = ex.Message;
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Hata oluştu: " + ex.Message;
+            }
+
+            return RedirectToAction(nameof(Manage), new { id = courseId });
+        }
+
+        // POST: Enrollment/QuickRemoveStudent (Manage sayfasından hızlı çıkarma)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> QuickRemoveStudent(int enrollmentId, int courseId)
+        {
+            try
+            {
+                await _enrollmentService.RemoveEnrollmentAsync(enrollmentId);
+                TempData["SuccessMessage"] = "Öğrenci sınıftan çıkarıldı.";
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Hata oluştu: " + ex.Message;
+            }
+
+            return RedirectToAction(nameof(Manage), new { id = courseId });
         }
     }
 }
