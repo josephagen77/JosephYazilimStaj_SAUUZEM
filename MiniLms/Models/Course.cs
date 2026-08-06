@@ -21,5 +21,8 @@ namespace MiniLms.Models
         public ICollection<CourseDocument> Documents { get; set; } = new List<CourseDocument>();
        
         public ICollection<LessonContent> LessonContents { get; set; } = new List<LessonContent>();
+        // Add these inside your Course class:
+        public int? DepartmentId { get; set; }
+        public virtual Department? Department { get; set; }
     }
 }

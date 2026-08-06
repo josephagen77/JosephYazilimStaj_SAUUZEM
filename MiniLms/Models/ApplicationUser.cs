@@ -9,5 +9,11 @@ namespace MiniLms.Models
 
         
         public string? StudentNumber { get; set; }
+
+        // Add these inside your ApplicationUser class:
+        public int? DepartmentId { get; set; }
+        public virtual Department? Department { get; set; }
+
+        public virtual ICollection<UserAiProvider> SavedAiKeys { get; set; } = new List<UserAiProvider>();
     }
 }
