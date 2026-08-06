@@ -124,4 +124,22 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
+// ... diğer app.UseRouting() / app.UseAuthentication() ayarlarınız ...
+
+// 🎯 YENİ: Uygulama başlarken Veritabanını kontrol et ve Admin'i oluştur
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        // DbInitializer sınıfındaki metodu çağırıyoruz
+        await MiniLms.Data.DbInitializer.SeedRolesAndAdminAsync(services);
+    }
+    catch (Exception ex)
+    {
+        // Hata olursa loglayabilirsiniz
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Roller ve Admin hesabı oluşturulurken bir hata meydana geldi.");
+    }
+}
 app.Run();

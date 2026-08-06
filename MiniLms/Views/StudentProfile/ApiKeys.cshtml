@@ -1,0 +1,145 @@
+﻿@model IEnumerable<MiniLms.Models.UserAiProvider>
+
+@{
+    ViewData["Title"] = "API Anahtarlarım";
+}
+
+<div class="container mt-4">
+    <h2 class="fw-bold mb-4"><i class="bi bi-key"></i> Yapay Zeka API Anahtarlarım</h2>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm">
+            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <!-- SOL: Yeni Anahtar Ekleme & Videolar -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white fw-bold">Yeni API Anahtarı Ekle</div>
+                <div class="card-body bg-light">
+                    <form asp-action="SaveApiKey" method="post">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Yapay Zeka Modeli Seçin</label>
+                            <select name="aiProviderId" id="providerSelect" class="form-select border-primary" asp-items="ViewBag.AiProviders" required>
+                                <option value="">-- Model Seçiniz --</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">API Anahtarınız</label>
+                            <input type="password" name="apiKey" class="form-control" placeholder="sk-..." required />
+                            <small class="text-muted">Anahtarlarınız şifrelenerek saklanır ve sadece size aittir.</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="bi bi-save"></i> Kaydet</button>
+                    </form>
+
+                    <!-- DİNAMİK YOUTUBE VİDEO ALANI -->
+                    <div id="videoContainer" class="mt-4 d-none">
+                        <div class="alert alert-info small border-info">
+                            <i class="bi bi-info-circle"></i> Bu model için API anahtarını nasıl alacağınızı bilmiyorsanız aşağıdaki rehber videoyu izleyebilirsiniz.
+                        </div>
+                        <div class="ratio ratio-16x9 rounded shadow-sm overflow-hidden">
+                            <iframe id="tutorialVideo" src="" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SAĞ: Kayıtlı Anahtarlar Listesi -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white fw-bold">Kayıtlı Anahtarlarım</div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <tbody>
+                            @foreach (var item in Model)
+                            {
+                                <tr class="align-middle">
+                                    <td class="ps-3 fw-bold">
+                                        <i class="bi bi-robot text-primary"></i> @item.AiProvider.Name
+                                    </td>
+                                    <td class="text-muted font-monospace small">
+                                        ••••••••••••@item.ApiKey.Substring(Math.Max(0, item.ApiKey.Length - 4))
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <!-- 🎯 YENİ: DÜZENLE BUTONU -->
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editApiKeyModal-@item.Id">
+                                            <i class="bi bi-pencil-square"></i> Düzenle
+                                        </button>
+
+                                        <form asp-action="DeleteApiKey" method="post" class="d-inline">
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" onclick="return confirm('Bu anahtarı silmek istediğinize emin misiniz?');">
+                                                <i class="bi bi-trash"></i> Sil
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+
+                                <!-- 🎯 YENİ: DÜZENLEME MODALI -->
+                                <div class="modal fade" id="editApiKeyModal-@item.Id" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form asp-action="SaveApiKey" method="post">
+                                                <!-- Arka planda güncelleme yapabilmesi için sağlayıcı ID'sini gizli gönderiyoruz -->
+                                                <input type="hidden" name="aiProviderId" value="@item.AiProviderId" />
+
+                                                <div class="modal-header bg-primary text-white">
+                                                    <h5 class="modal-title fw-bold">@item.AiProvider.Name Anahtarını Güncelle</h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body bg-light text-start">
+                                                    <div class="mb-3">
+                                                        <label class="form-label fw-bold">Yeni API Anahtarınız</label>
+                                                        <input type="password" name="apiKey" class="form-control" placeholder="Yeni sk-... anahtarını yapıştırın" required />
+                                                        <small class="text-muted d-block mt-2">Eski anahtarınızın üzerine yazılacaktır. Anahtarınız güvenlik gereği gizli tutulur.</small>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                                                    <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-arrow-repeat"></i> Güncelle</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            @if (!Model.Any())
+                            {
+                                <tr><td colspan="3" class="text-center text-muted py-5">Sisteme kayıtlı şahsi bir API anahtarınız bulunmuyor.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            // Sağlayıcı seçildiğinde YouTube eğitim videosunu getir
+            $('#providerSelect').change(function () {
+                var selectedText = $("#providerSelect option:selected").text().toLowerCase();
+                var videoContainer = $('#videoContainer');
+                var tutorialVideo = $('#tutorialVideo');
+
+                if (selectedText.includes("chatgpt")) {
+                    tutorialVideo.attr("src", "https://www.youtube.com/embed/CGncYPblQA8");
+                    videoContainer.removeClass("d-none");
+                } else if (selectedText.includes("claude")) {
+                    tutorialVideo.attr("src", "https://www.youtube.com/embed/nfOFl9RyiWw");
+                    videoContainer.removeClass("d-none");
+                } else {
+                    videoContainer.addClass("d-none");
+                    tutorialVideo.attr("src", "");
+                }
+            });
+        });
+    </script>
+}

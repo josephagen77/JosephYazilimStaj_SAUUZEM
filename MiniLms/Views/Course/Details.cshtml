@@ -1,9 +1,11 @@
 ﻿@model MiniLms.Models.Course
 @using Microsoft.Extensions.Configuration
 @inject IConfiguration Configuration
+@inject MiniLms.Data.ApplicationDbContext DbContext
 
 @{
     ViewData["Title"] = Model.Title + " - Ders Detayları";
+    var activeProviders = DbContext.AiProviders.Where(p => p.IsActive).ToList();
 }
 
 <div>
@@ -22,7 +24,6 @@
         </div>
     }
 
-    <!-- 🎯 GÜNCELLENDİ: Öğretmen Kontrol Paneli (Sınıf Yönetimi ve AI Analizi) eklendi -->
     <section class="page-hero">
         <div class="d-flex justify-content-between align-items-start w-100">
             <div class="d-flex align-items-center gap-3">
@@ -37,13 +38,9 @@
             @if (User.IsInRole("Teacher"))
             {
                 <div class="text-end mt-2 d-flex flex-column gap-2 flex-md-row">
-                    <!-- Sınıf Yönetimi Butonu (Öğrenci Ekle/Çıkar) -->
                     <a asp-controller="Enrollment" asp-action="Manage" asp-route-id="@Model.Id" class="btn btn-light border shadow-sm fw-bold text-primary">
                         <i class="bi bi-people-fill"></i> Sınıfı Yönet
                     </a>
-
-                    <!-- AI Analiz Butonu (Öğrencinin zorlandığı yerleri gösterir) -->
-                    <!-- Not: Şu an test için ID'yi (B266200571) sabit gönderiyoruz. -->
                     <a asp-controller="Analytics" asp-action="StudentInsight" asp-route-userId="B266200571" asp-route-courseId="@Model.Id" class="btn btn-warning shadow-sm fw-bold">
                         <i class="bi bi-robot"></i> Örnek AI Analizi Gör
                     </a>
@@ -111,11 +108,6 @@
                 </div>
                 <div class="card-body bg-light">
 
-                    <div class="alert alert-info py-2 px-3 mb-3 shadow-sm border-info" style="font-size: 0.85rem;">
-                        <i class="bi bi-lightbulb-fill text-warning fs-6"></i> <strong>Farklı bir AI modeli deneyin!</strong><br />
-                        Varsayılan olarak okulun Gemini sistemini ücretsiz kullanıyorsunuz. Aşağıdan <strong>ChatGPT</strong> veya <strong>Claude</strong>'u seçerek kendi kişisel API anahtarınızla daha gelişmiş modelleri test edebilirsiniz. Nasıl anahtar alacağınızı bilmiyorsanız, modeli seçtiğinizde belirecek olan eğitim videosunu izleyebilirsiniz!
-                    </div>
-
                     <div id="chatWindowContainer" class="p-3 mb-3 border rounded bg-white shadow-sm" style="height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;">
                         <div class="text-center text-muted small my-auto" id="chatLoadingState">
                             <i class="bi bi-chat-dots fs-3 d-block mb-2"></i> Sohbet geçmişi yükleniyor...
@@ -146,29 +138,30 @@
                                 </select>
                             </div>
                             <div class="col-12">
-                                <label class="form-label small fw-bold text-secondary">Yapay Zeka Sağlayıcısı</label>
-                                <select class="form-select form-select-sm border-primary" name="provider" id="aiProviderSelect">
-                                    <option value="gemini" selected>Google Gemini (Ücretsiz Kurumsal Mod)</option>
-                                    <option value="chatgpt">OpenAI ChatGPT (Kişisel Anahtar İle)</option>
-                                    <option value="claude">Anthropic Claude (Kişisel Anahtar İle)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Gizli API Key Alanı ve YouTube Eğitim Modülü -->
-                        <div id="apiConnectionSection" style="display: none;">
-                            <div class="mb-3 p-2 bg-light border border-warning rounded">
-                                <label class="form-label small fw-bold text-dark">Kişisel API Anahtarınız <i class="bi bi-key-fill text-warning"></i></label>
-                                <input type="password" name="userApiKey" id="userApiKeyInput" class="form-control form-control-sm border-warning" placeholder="sk-..." autocomplete="off" />
-                                <small class="text-muted d-block mt-1" style="font-size: 10px;">Gizlilik Uyarısı: Girdiğiniz anahtar sunucuya kaydedilmez, sadece bu oturumdaki istekleriniz için anlık olarak kullanılır.</small>
-                            </div>
-
-                            <div id="apiKeyHelpContainer" class="mb-3 p-3 bg-white border border-info rounded shadow-sm">
-                                <h6 class="fw-bold text-info mb-2 fs-6" id="helpTitle">API Anahtarı Nasıl Alınır?</h6>
-                                <div class="small text-muted mb-3" id="helpSteps" style="line-height: 1.5;"></div>
-                                <div class="ratio ratio-16x9 rounded overflow-hidden shadow-sm">
-                                    <iframe id="helpVideo" src="" title="YouTube API Key Tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                <!-- 🎯 YENİ: API Anahtarlarım Butonu eklendi -->
+                                <div class="d-flex justify-content-between align-items-end mb-1">
+                                    <label class="form-label small fw-bold text-secondary mb-0">Yapay Zeka Sağlayıcısı</label>
+                                    @if (User.IsInRole("Student"))
+                                    {
+                                        <a asp-controller="StudentProfile" asp-action="ApiKeys" class="btn btn-sm py-0 btn-warning fw-bold text-dark" style="font-size: 0.75rem;">
+                                            <i class="bi bi-key-fill"></i> Anahtarlarımı Yönet
+                                        </a>
+                                    }
                                 </div>
+                                <select class="form-select form-select-sm border-primary" name="provider" id="aiProviderSelect">
+                                    @foreach (var provider in activeProviders)
+                                    {
+                                        // 🎯 YENİ: Gemini'yi varsayılan (selected) yap
+                                        if (provider.ProviderKey.ToLower() == "gemini")
+                                        {
+                                            <option value="@provider.ProviderKey" selected>@provider.Name</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@provider.ProviderKey">@provider.Name</option>
+                                        }
+                                    }
+                                </select>
                             </div>
                         </div>
 
@@ -234,7 +227,7 @@
                         <form asp-action="UploadDocument" method="post" enctype="multipart/form-data">
                             <input type="hidden" name="courseId" value="@Model.Id" />
                             <div class="mb-3">
-                                <label class="form-label small text-muted">Tüm akademik formatları destekler (.pdf, .docx, .pptx, .xlsx, .zip vb.). AI metin okuyabilen formatları otomatik indeksler.</label>
+                                <label class="form-label small text-muted">Tüm akademik formatları destekler (.pdf, .docx, .pptx, vb.).</label>
                                 <input type="file" name="file" class="form-control form-control-sm border-primary" accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" required />
                             </div>
                             <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold shadow-sm"><i class="bi bi-upload"></i> Yükle ve İndeksle</button>
@@ -314,44 +307,12 @@
 </div>
 
 @section Scripts {
-    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
     <script>
         $(document).ready(function () {
 
-            // --- DİNAMİK YOUTUBE EĞİTİM VERİTABANI ---
-            const apiGuides = {
-                chatgpt: {
-                    title: "ChatGPT (OpenAI) API Anahtarı Nasıl Alınır?",
-                    steps: "<strong>Adım 1:</strong> <a href='https://platform.openai.com' target='_blank'>platform.openai.com</a> adresine gidin ve giriş yapın.<br><strong>Adım 2:</strong> Sol menüden <em>'API Keys'</em> sekmesine tıklayın.<br><strong>Adım 3:</strong> <em>'Create new secret key'</em> butonuna tıklayın, kopyalayıp yukarıdaki kutuya yapıştırın.",
-                    videoUrl: "https://www.youtube.com/embed/CGncYPblQA8?si=MiniLmsTutorial"
-                },
-                claude: {
-                    title: "Claude (Anthropic) API Anahtarı Nasıl Alınır?",
-                    steps: "<strong>Adım 1:</strong> <a href='https://console.anthropic.com' target='_blank'>console.anthropic.com</a> adresine gidin ve giriş yapın.<br><strong>Adım 2:</strong> Sol taraftaki yan menüden <em>'API Keys'</em> bağlantısına tıklayın.<br><strong>Adım 3:</strong> <em>'Create Key'</em> diyerek oluşturduğunuz şifreyi kopyalayıp yukarı yapıştırın.",
-                    videoUrl: "https://www.youtube.com/embed/nfOFl9RyiWw?si=MiniLmsTutorial"
-                }
-            };
-
-            $("#aiProviderSelect").change(function() {
-                const selectedProvider = $(this).val();
-                if (selectedProvider === "gemini") {
-                    $("#apiConnectionSection").slideUp(300);
-                    $("#userApiKeyInput").val("");
-                } else {
-                    const guideData = apiGuides[selectedProvider];
-                    if(guideData) {
-                        $("#helpTitle").html('<i class="bi bi-youtube text-danger"></i> ' + guideData.title);
-                        $("#helpSteps").html(guideData.steps);
-                        $("#helpVideo").attr("src", guideData.videoUrl);
-                    }
-                    $("#apiConnectionSection").slideDown(300);
-                }
-            });
-
-            // --- CHAT UI MANTIĞI & MARKDOWN DESTEĞİ ---
             const chatWindow = $("#chatWindowContainer");
 
             marked.setOptions({
@@ -435,8 +396,7 @@
 
             function getAjaxData(baseData) {
                 return Object.assign(baseData, {
-                    provider: $("#aiProviderSelect").val(),
-                    userApiKey: $("#userApiKeyInput").val()
+                    provider: $("#aiProviderSelect").val()
                 });
             }
 
@@ -467,7 +427,7 @@
                         if (data.success) {
                             appendChatMessage("model", data.response);
                         } else {
-                            appendChatMessage("model", "⚠️ Hata: " + data.response);
+                            appendChatMessage("model", data.response);
                         }
                     },
                     error: function () {
@@ -502,7 +462,7 @@
                             appendChatMessage("model", data.response);
                             $(".btn-quiz-from-summary").fadeIn();
                         } else {
-                            appendChatMessage("model", "⚠️ " + data.response);
+                            appendChatMessage("model", data.response);
                         }
                     },
                     error: function () {

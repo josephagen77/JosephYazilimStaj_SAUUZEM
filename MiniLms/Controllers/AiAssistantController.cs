@@ -5,12 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Security.Claims; // 🎯 YENİ: Kullanıcı ID'sini almak için eklendi
-using MiniLms.Data; // 🎯 YENİ: Veritabanına doğrudan erişim için eklendi
+using System.Security.Claims;
+using MiniLms.Data;
 using MiniLms.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace MiniLms.Controllers
 {
@@ -21,23 +21,52 @@ namespace MiniLms.Controllers
         private readonly IVectorDbService _vectorDbService;
         private readonly ICourseDocumentService _courseDocumentService;
         private readonly ICourseService _courseService;
-        private readonly ApplicationDbContext _context; // 🎯 YENİ: Chat geçmişini kaydetmek için
+        private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager; // 🎯 YENİ: Kullanıcıyı bulmak için eklendi
 
         public AiAssistantController(
             IAiService aiService,
             IVectorDbService vectorDbService,
             ICourseDocumentService courseDocumentService,
             ICourseService courseService,
-            ApplicationDbContext context) // 🎯 YENİ: Constructor'a eklendi
+            ApplicationDbContext context,
+            UserManager<ApplicationUser> userManager) // 🎯 YENİ
         {
             _aiService = aiService;
             _vectorDbService = vectorDbService;
             _courseDocumentService = courseDocumentService;
             _courseService = courseService;
             _context = context;
+            _userManager = userManager;
         }
 
-        // 🎯 YENİ: Sayfa yüklendiğinde eski sohbetleri getiren endpoint
+        // 🎯 YENİ YARDIMCI METOT: Öğrencinin API Anahtarını Veritabanından Güvenli Bir Şekilde Çeker
+        private async Task<(bool success, string apiKey, string errorMessage)> ResolveApiKeyAsync(string userId, string providerKey)
+        {
+            var provider = await _context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == providerKey.ToLower().Trim());
+
+            if (provider == null)
+                return (false, "", "Geçersiz yapay zeka sağlayıcısı.");
+
+            if (!provider.IsActive)
+                return (false, "", $"{provider.Name} Sistem Yöneticisi tarafından geçici olarak devre dışı bırakılmıştır.");
+
+            // Eğer sistem yöneticisi genel bir API anahtarı girdiyse (örn. Okulun Gemini anahtarı) onu kullan
+            if (!string.IsNullOrEmpty(provider.GlobalApiKey))
+                return (true, provider.GlobalApiKey, "");
+
+            // Global anahtar yoksa, öğrencinin profiline kaydettiği özel anahtarı bul
+            var userSavedKey = await _context.UserAiProviders
+                .FirstOrDefaultAsync(u => u.UserId == userId && u.AiProviderId == provider.Id);
+
+            if (userSavedKey == null || string.IsNullOrEmpty(userSavedKey.ApiKey))
+            {
+                return (false, "", $"Bu model ({provider.Name}) için profilinizde kayıtlı bir API anahtarı bulunamadı. Lütfen sağ üstteki menüden 'API Anahtarlarım' sayfasına giderek anahtarınızı ekleyin.");
+            }
+
+            return (true, userSavedKey.ApiKey, "");
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetChatHistory(int courseId)
         {
@@ -54,22 +83,25 @@ namespace MiniLms.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> AskAi(int courseId, string question, int? documentId, string provider = "gemini", string? userApiKey = null)
+        public async Task<IActionResult> AskAi(int courseId, string question, int? documentId, string provider = "gemini")
         {
-            if (string.IsNullOrEmpty(question))
-            {
-                return Json(new { success = false, response = "Lütfen boş bir soru göndermeyin." });
-            }
+            if (string.IsNullOrEmpty(question)) return Json(new { success = false, response = "Lütfen boş bir soru göndermeyin." });
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Json(new { success = false, response = "Oturum süreniz dolmuş, lütfen tekrar giriş yapın." });
-            }
+            if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süreniz dolmuş, lütfen tekrar giriş yapın." });
 
             try
             {
-                // 1. İlgili metinleri vektör aramasından getir
+                // 🎯 1. API ANAHTARINI VERİTABANINDAN AL (Frontend'den GELMİYOR ARTIK)
+                var apiKeyResult = await ResolveApiKeyAsync(userId, provider);
+                if (!apiKeyResult.success)
+                {
+                    return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
+                }
+
+                string theApiKey = apiKeyResult.apiKey;
+
+                // 2. İlgili metinleri vektör aramasından getir
                 var relevantTexts = new List<string>();
                 string selectedSourceName = "Tüm ders kaynakları";
                 string? selectedDocumentPath = null;
@@ -78,9 +110,7 @@ namespace MiniLms.Controllers
                 {
                     var selectedDocument = await _courseDocumentService.GetDocumentByIdAsync(documentId.Value);
                     if (selectedDocument == null || selectedDocument.CourseId != courseId)
-                    {
                         return Json(new { success = false, response = "Seçilen doküman bu derse ait değil veya bulunamadı." });
-                    }
 
                     selectedSourceName = selectedDocument.FileName;
                     selectedDocumentPath = selectedDocument.FilePath;
@@ -98,9 +128,7 @@ namespace MiniLms.Controllers
                 if (relevantTexts == null || relevantTexts.Count == 0)
                 {
                     if (documentId.HasValue && documentId.Value > 0)
-                    {
                         relevantTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId.Value);
-                    }
                     else
                     {
                         var course = await _courseService.GetCourseByIdAsync(courseId);
@@ -119,46 +147,35 @@ namespace MiniLms.Controllers
                     return Json(new { success = false, response = emptyMessage });
                 }
 
-                // 2. 🎯 YENİ: Geçmiş mesajları veritabanından getir (Son 6 mesaj / 3 soru-cevap çifti)
+                // 3. Geçmiş mesajları getir
                 var previousMessages = await _context.ChatMessages
                     .Where(m => m.CourseId == courseId && m.UserId == userId)
                     .OrderByDescending(m => m.Timestamp)
                     .Take(6)
                     .ToListAsync();
 
-                previousMessages.Reverse(); // Kronolojik sıraya koy
+                previousMessages.Reverse();
 
                 string chatHistoryContext = string.Join("\n", previousMessages.Select(m =>
                     $"{(m.Role == "user" ? "ÖĞRENCİ" : "ASİSTAN")}: {m.Content}"));
 
                 string context = string.Join("\n\n", relevantTexts);
 
-                // 3. 🎯 GÜNCELLENDİ: Final Prompt'a esneklik tanındı (Çoklu Dil Desteği)
                 string finalPrompt = $@"
     Sen bu dersin eğitim asistanısın. Aşağıda sana bu dersin içeriğinden alınan kaynak metinler (Bağlam) ve Öğrenci ile olan geçmiş sohbetiniz verilmiştir.
 
     KURALLAR:
-    1. Eğer öğrencinin sorusu teknik bir ders konusu ise SADECE BAĞLAM'a sadık kalarak, akademik ve net bir dilde cevapla. Dışarıdan yeni bilgi ekleme.
-    2. Eğer öğrenci geçmiş bir cevabı 'daha basit anlat', 'kısalt', 'örneklendir' veya 'kolayca anlat' gibi şekillerde değiştirmeyi istiyorsa, SOHBET GEÇMİŞİNİ referans alarak istenen formatlamayı yap.
-    3. Eğitici ve destekleyici bir üslup kullan.
-    4. SADECE soru bağlamla ve geçmiş sohbetle tamamen alakasızsa (örneğin hava durumu, maç sonuçları vb.), kibarca sorunun ders içeriğinde olmadığını belirt.
-    5. DİL KURALI (ÖNEMLİ): Öğrenci HANGİ DİLDE soru soruyorsa (İngilizce, Türkçe, Arapça vb.) veya HANGİ DİLDE yanıt istiyorsa, SADECE O DİLDE yanıt ver.
+    1. Teknik ders konularında SADECE BAĞLAM'a sadık kalarak akademik bir dilde cevapla.
+    2. Öğrenci geçmiş bir cevabı 'daha basit anlat', 'kısalt' vb. diyorsa SOHBET GEÇMİŞİNİ referans al.
+    3. DİL KURALI: Öğrenci HANGİ DİLDE soru soruyorsa SADECE O DİLDE yanıt ver.
 
-    SEÇİLEN KAYNAK:
-    {selectedSourceName}
-
-    BAĞLAM:
-    {context}
-
-    GEÇMİŞ SOHBET (Bağlamı Hatırlaman İçin):
-    {(string.IsNullOrWhiteSpace(chatHistoryContext) ? "Henüz geçmiş sohbet yok." : chatHistoryContext)}
-
-    ÖĞRENCİNİN YENİ SORUSU:
-    {question}
+    SEÇİLEN KAYNAK: {selectedSourceName}
+    BAĞLAM: {context}
+    GEÇMİŞ SOHBET: {(string.IsNullOrWhiteSpace(chatHistoryContext) ? "Henüz geçmiş sohbet yok." : chatHistoryContext)}
+    ÖĞRENCİNİN YENİ SORUSU: {question}
 ";
-
-                // 4. Yapay Zeka'ya sor
-                string aiResponse = await _aiService.SummarizeTextAsync(finalPrompt, provider, userApiKey);
+                // 4. API Anahtarını servise gönder
+                string aiResponse = await _aiService.SummarizeTextAsync(finalPrompt, provider, theApiKey);
 
                 if (IsAiServiceError(aiResponse))
                 {
@@ -166,7 +183,7 @@ namespace MiniLms.Controllers
                     aiResponse = BuildLocalFallbackAnswer(relevantTexts);
                 }
 
-                // 5. 🎯 YENİ: Kullanıcının sorusunu ve AI'ın cevabını veritabanına kaydet
+                // 5. Mesajları veritabanına kaydet
                 var userMessage = new ChatMessage { UserId = userId, CourseId = courseId, Role = "user", Content = question, Timestamp = DateTime.Now };
                 var modelMessage = new ChatMessage { UserId = userId, CourseId = courseId, Role = "model", Content = aiResponse, Timestamp = DateTime.Now.AddSeconds(1) };
 
@@ -182,37 +199,29 @@ namespace MiniLms.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> DocumentSummary(int courseId, int documentId, string provider = "gemini", string? userApiKey = null)
+        public async Task<IActionResult> DocumentSummary(int courseId, int documentId, string provider = "gemini")
         {
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var apiKeyResult = await ResolveApiKeyAsync(userId, provider);
+                if (!apiKeyResult.success) return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
+
                 var document = await _courseDocumentService.GetDocumentByIdAsync(documentId);
-                if (document == null || document.CourseId != courseId)
-                {
-                    return Json(new { success = false, response = "Seçilen doküman bu derse ait değil veya bulunamadı." });
-                }
+                if (document == null || document.CourseId != courseId) return Json(new { success = false, response = "Seçilen doküman bu derse ait değil." });
 
                 var documentTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId, maxChunks: 4);
-                if (documentTexts.Count == 0)
-                {
-                    return Json(new { success = false, response = "Bu dokümandan özet üretilecek metin çıkarılamadı." });
-                }
+                if (documentTexts.Count == 0) return Json(new { success = false, response = "Bu dokümandan özet üretilecek metin çıkarılamadı." });
 
                 string sourceText = string.Join("\n\n", documentTexts);
                 string summaryPrompt = $@"
     Aşağıdaki ders dokümanını öğrencinin hızlıca anlayacağı şekilde özetle.
-    En önemli konu başlıklarını, dokümanın kapsamını ve sınav/çalışma açısından dikkat edilmesi gereken noktaları kısa paragraflarla ver.
-    
-    DİL KURALI: Özetin dilini, kaynak dokümanın orijinal dilinde oluştur. (Örneğin, doküman İngilizce ise İngilizce özetle).
+    DİL KURALI: Özetin dilini, kaynak dokümanın orijinal dilinde oluştur.
 
-    DOKÜMAN ADI:
-    {document.FileName}
-
-    DOKÜMAN METNİ:
-    {sourceText}
+    DOKÜMAN ADI: {document.FileName}
+    DOKÜMAN METNİ: {sourceText}
 ";
-
-                string summary = await _aiService.SummarizeTextAsync(summaryPrompt, provider, userApiKey);
+                string summary = await _aiService.SummarizeTextAsync(summaryPrompt, provider, apiKeyResult.apiKey);
 
                 if (IsAiServiceError(summary))
                 {
@@ -224,47 +233,36 @@ namespace MiniLms.Controllers
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, response = $"Doküman özeti alınırken teknik bir hata oluştu: {ex.Message}" });
+                return Json(new { success = false, response = $"Teknik bir hata oluştu: {ex.Message}" });
             }
         }
 
         [HttpGet]
-        public async Task<IActionResult> DocumentQuizSession(int courseId, int documentId, int questionCount = 5, string difficulty = "mixed", string provider = "gemini", string? userApiKey = null)
+        public async Task<IActionResult> DocumentQuizSession(int courseId, int documentId, int questionCount = 5, string difficulty = "mixed", string provider = "gemini")
         {
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var apiKeyResult = await ResolveApiKeyAsync(userId, provider);
+                if (!apiKeyResult.success) return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
+
                 var document = await _courseDocumentService.GetDocumentByIdAsync(documentId);
-                if (document == null || document.CourseId != courseId)
-                {
-                    return Json(new { success = false, response = "Seçilen doküman bu derse ait değil veya bulunamadı." });
-                }
+                if (document == null || document.CourseId != courseId) return Json(new { success = false, response = "Seçilen doküman bu derse ait değil." });
 
                 questionCount = Math.Clamp(questionCount, 3, 10);
-
                 var documentTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId, maxChunks: 8);
-                if (documentTexts.Count == 0)
-                {
-                    return Json(new { success = false, response = "Bu dokümandan quiz üretilecek metin çıkarılamadı." });
-                }
+
+                if (documentTexts.Count == 0) return Json(new { success = false, response = "Bu dokümandan quiz üretilecek metin çıkarılamadı." });
 
                 difficulty = NormalizeDifficulty(difficulty);
-                var questions = await BuildInteractiveDocumentQuizAsync(document.FileName, documentTexts, questionCount, difficulty, provider, userApiKey);
+                var questions = await BuildInteractiveDocumentQuizAsync(document.FileName, documentTexts, questionCount, difficulty, provider, apiKeyResult.apiKey);
 
                 if (questions.Count == 0)
                 {
-                    return Json(new
-                    {
-                        success = false,
-                        response = "Bu dokümandan kaliteli quiz sorusu çıkarılamadı. API Anahtarınızın doğru olduğundan veya dokümanda yeterli metin olduğundan emin olun."
-                    });
+                    return Json(new { success = false, response = "Bu dokümandan kaliteli quiz sorusu çıkarılamadı. API Anahtarınızın doğru olduğundan veya dokümanda yeterli metin olduğundan emin olun." });
                 }
 
-                return Json(new
-                {
-                    success = true,
-                    title = $"{document.FileName} Quiz",
-                    questions
-                });
+                return Json(new { success = true, title = $"{document.FileName} Quiz", questions });
             }
             catch (Exception ex)
             {
@@ -294,7 +292,7 @@ namespace MiniLms.Controllers
             return $"{fileName} dokümanından metin çıkarıldı, ancak otomatik özet şu anda kullanılamıyor:\n\n{preview}";
         }
 
-        private async Task<List<QuizQuestionDto>> BuildInteractiveDocumentQuizAsync(string fileName, List<string> documentTexts, int questionCount, string difficulty, string provider, string? userApiKey)
+        private async Task<List<QuizQuestionDto>> BuildInteractiveDocumentQuizAsync(string fileName, List<string> documentTexts, int questionCount, string difficulty, string provider, string apiKey)
         {
             string sourceText = string.Join("\n\n", documentTexts);
             string difficultyInstruction = difficulty switch
@@ -307,9 +305,7 @@ namespace MiniLms.Controllers
 
             string jsonPrompt = $@"
     Aşağıdaki ders dokümanına göre {questionCount} adet çoktan seçmeli quiz üret.
-    
     DİL KURALI: Quiz sorularını, seçeneklerini ve açıklamalarını kaynak dokümanın yazıldığı dilde oluştur.
-
     Sadece geçerli JSON döndür. Markdown veya kod bloğu kullanma.
     JSON formatı:
     [
@@ -322,15 +318,14 @@ namespace MiniLms.Controllers
         ""difficulty"": ""Orta"",
         ""bloomLevel"": ""Anlama"",
         ""sourceHint"": ""İpucu"",
-        ""whyWrong"": [""A neden yanlış"", ""B neden yanlış"", ""C neden yanlış"", ""D neden yanlış""]
+        ""whyWrong"": [""A neden yanlış"", ""B neden yanlış""]
       }}
     ]
     {difficultyInstruction}
     DOKÜMAN ADI: {fileName}
     DOKÜMAN METNİ: {sourceText}
 ";
-
-            string aiResponse = await _aiService.SummarizeTextAsync(jsonPrompt, provider, userApiKey);
+            string aiResponse = await _aiService.SummarizeTextAsync(jsonPrompt, provider, apiKey);
 
             if (!IsAiServiceError(aiResponse))
             {

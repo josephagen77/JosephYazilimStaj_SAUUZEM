@@ -5,7 +5,6 @@
 @inject UserManager<ApplicationUser> UserManager
 
 @{
-    // 🎯 YENİ: Kullanıcının şu an hangi menüde olduğunu tespit et
     var currentController = ViewContext.RouteData.Values["Controller"]?.ToString();
 }
 
@@ -20,9 +19,8 @@
     <link rel="stylesheet" href="~/MiniLms.styles.css" asp-append-version="true" />
 
     <style>
-        /* 🎯 YENİ: Aktif menü butonunun rengini ve kalınlığını ayarla */
         .app-navbar .nav-link.active-nav {
-            color: #0d6efd !important; /* Mavi renk */
+            color: #0d6efd !important;
             font-weight: 800;
             border-bottom: 2px solid #0d6efd;
         }
@@ -61,11 +59,25 @@
                                 <i class="bi bi-book"></i> Dersler
                             </a>
                         </li>
+                        @if (User.IsInRole("SystemAdmin"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-danger fw-bold" asp-controller="SystemAdmin" asp-action="Index">
+                                    <i class="bi bi-shield-lock-fill"></i> Sistem Yöneticisi
+                                </a>
+                            </li>
+                        }
                         @if (User.IsInRole("Student"))
                         {
                             <li class="nav-item">
                                 <a class="nav-link @(currentController == "StudentCourses" ? "active-nav" : "text-dark")" asp-area="" asp-controller="StudentCourses" asp-action="Index">
                                     <i class="bi bi-journal-check"></i> Derslerim
+                                </a>
+                            </li>
+                            <!-- 🎯 YENİ: Ana Menüye API Anahtarlarım Eklendi -->
+                            <li class="nav-item">
+                                <a class="nav-link @(currentController == "StudentProfile" ? "active-nav" : "text-dark") fw-bold text-warning" asp-area="" asp-controller="StudentProfile" asp-action="ApiKeys">
+                                    <i class="bi bi-key-fill"></i> API Anahtarlarım
                                 </a>
                             </li>
                         }
@@ -149,30 +161,30 @@
         $(document).ready(function () {
         @if (TempData["SuccessMessage"] != null)
         {
-                <text>
-                    Swal.fire({
-                    icon: 'success',
-                    title: 'Başarılı!',
-                    text: '@Html.Raw(TempData["SuccessMessage"])',
-                    timer: 3000,
-                    showConfirmButton: false,
-                    toast: true,
-                    position: 'top-end'
-                    });
-                </text>
+                    <text>
+                        Swal.fire({
+                        icon: 'success',
+                        title: 'Başarılı!',
+                        text: '@Html.Raw(TempData["SuccessMessage"])',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        toast: true,
+                        position: 'top-end'
+                        });
+                    </text>
         }
 
         @if (TempData["ErrorMessage"] != null)
         {
-                <text>
-                    Swal.fire({
-                    icon: 'error',
-                    title: 'Hata!',
-                    text: '@Html.Raw(TempData["ErrorMessage"])',
-                    confirmButtonText: 'Tamam',
-                    confirmButtonColor: '#dc3545'
-                    });
-                </text>
+                    <text>
+                        Swal.fire({
+                        icon: 'error',
+                        title: 'Hata!',
+                        text: '@Html.Raw(TempData["ErrorMessage"])',
+                        confirmButtonText: 'Tamam',
+                        confirmButtonColor: '#dc3545'
+                        });
+                    </text>
         }
         });
     </script>
