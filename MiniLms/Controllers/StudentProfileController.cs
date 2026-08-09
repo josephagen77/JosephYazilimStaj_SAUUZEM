@@ -20,18 +20,16 @@ namespace MiniLms.Controllers
             _userManager = userManager;
         }
 
-        // Öğrencinin API Anahtarlarını Yönettiği Sayfa
         public async Task<IActionResult> ApiKeys()
         {
             var user = await _userManager.GetUserAsync(User);
+            if (user == null) return NotFound("Kullanıcı bulunamadı."); // 🎯 YENİ: Null koruması
 
-            // Öğrencinin daha önce kaydettiği anahtarlar
             var savedKeys = await _context.UserAiProviders
                 .Include(u => u.AiProvider)
                 .Where(u => u.UserId == user.Id)
                 .ToListAsync();
 
-            // Sistem Yöneticisinin AKTİF ettiği sağlayıcıları Dropdown için çek
             var activeProviders = await _context.AiProviders
                 .Where(p => p.IsActive)
                 .ToListAsync();
@@ -45,19 +43,17 @@ namespace MiniLms.Controllers
         public async Task<IActionResult> SaveApiKey(int aiProviderId, string apiKey)
         {
             var user = await _userManager.GetUserAsync(User);
+            if (user == null) return NotFound("Kullanıcı bulunamadı."); // 🎯 YENİ: Null koruması
 
-            // Bu sağlayıcı için zaten bir anahtar var mı kontrol et
             var existing = await _context.UserAiProviders
                 .FirstOrDefaultAsync(u => u.UserId == user.Id && u.AiProviderId == aiProviderId);
 
             if (existing != null)
             {
-                // Varsa güncelle
                 existing.ApiKey = apiKey;
             }
             else
             {
-                // Yoksa yeni ekle
                 _context.UserAiProviders.Add(new UserAiProvider
                 {
                     UserId = user.Id,
@@ -76,6 +72,8 @@ namespace MiniLms.Controllers
         public async Task<IActionResult> DeleteApiKey(int id)
         {
             var user = await _userManager.GetUserAsync(User);
+            if (user == null) return NotFound("Kullanıcı bulunamadı."); // 🎯 YENİ: Null koruması
+
             var key = await _context.UserAiProviders.FirstOrDefaultAsync(k => k.Id == id && k.UserId == user.Id);
 
             if (key != null)

@@ -74,13 +74,13 @@
                                     <i class="bi bi-journal-check"></i> Derslerim
                                 </a>
                             </li>
-                            <!-- 🎯 YENİ: Ana Menüye API Anahtarlarım Eklendi -->
                             <li class="nav-item">
                                 <a class="nav-link @(currentController == "StudentProfile" ? "active-nav" : "text-dark") fw-bold text-warning" asp-area="" asp-controller="StudentProfile" asp-action="ApiKeys">
                                     <i class="bi bi-key-fill"></i> API Anahtarlarım
                                 </a>
                             </li>
                         }
+
                         @if (User.IsInRole("Teacher"))
                         {
                             <li class="nav-item">
@@ -134,6 +134,14 @@
                                 </a>
                             </li>
                         }
+                        @if (User.IsInRole("ProgramManager"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-success fw-bold @(currentController == "ProgramManager" ? "active-nav" : "")" asp-controller="ProgramManager" asp-action="Index">
+                                    <i class="bi bi-building"></i> Departmanım
+                                </a>
+                            </li>
+                        }
                     </ul>
                 </div>
             </div>
@@ -157,35 +165,33 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
+    <!-- 🎯 TERTEMİZ JAVASCRIPT: C# hataları kaldırıldı -->
     <script>
         $(document).ready(function () {
-        @if (TempData["SuccessMessage"] != null)
-        {
-                    <text>
-                        Swal.fire({
-                        icon: 'success',
-                        title: 'Başarılı!',
-                        text: '@Html.Raw(TempData["SuccessMessage"])',
-                        timer: 3000,
-                        showConfirmButton: false,
-                        toast: true,
-                        position: 'top-end'
-                        });
-                    </text>
-        }
+            var successMsg = '@Html.Raw(TempData["SuccessMessage"]?.ToString()?.Replace("'", "\\'"))';
+            var errorMsg = '@Html.Raw(TempData["ErrorMessage"]?.ToString()?.Replace("'", "\\'"))';
 
-        @if (TempData["ErrorMessage"] != null)
-        {
-                    <text>
-                        Swal.fire({
-                        icon: 'error',
-                        title: 'Hata!',
-                        text: '@Html.Raw(TempData["ErrorMessage"])',
-                        confirmButtonText: 'Tamam',
-                        confirmButtonColor: '#dc3545'
-                        });
-                    </text>
-        }
+            if (successMsg && successMsg.length > 0) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Başarılı!',
+                    text: successMsg,
+                    timer: 3000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end'
+                });
+            }
+
+            if (errorMsg && errorMsg.length > 0) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Hata!',
+                    text: errorMsg,
+                    confirmButtonText: 'Tamam',
+                    confirmButtonColor: '#dc3545'
+                });
+            }
         });
     </script>
 

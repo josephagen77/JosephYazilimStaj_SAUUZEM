@@ -1,0 +1,82 @@
+﻿@model MiniLms.Models.Department
+
+@{
+    ViewData["Title"] = "Departman Yönetimi";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-success mb-0"><i class="bi bi-building"></i> @Model.Name Yönetim Paneli</h2>
+            <p class="text-muted">Bölüm Başkanı / Program Yöneticisi Paneli</p>
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger shadow-sm">
+            <i class="bi bi-exclamation-triangle-fill"></i> @TempData["ErrorMessage"]
+        </div>
+    }
+
+    <div class="row g-4 mb-4">
+        <!-- Departman İstatistikleri -->
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 border-start border-4 border-primary h-100 bg-light">
+                <div class="card-body">
+                    <h5 class="fw-bold text-primary"><i class="bi bi-book"></i> Bölüme Ait Dersler</h5>
+                    <h2 class="display-5 fw-bold mb-0">@ViewBag.TotalCourses</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0 border-start border-4 border-success h-100 bg-light">
+                <div class="card-body">
+                    <h5 class="fw-bold text-success"><i class="bi bi-people"></i> Bölüme Kayıtlı Kişiler</h5>
+                    <h2 class="display-5 fw-bold mb-0">@ViewBag.TotalUsers</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Departman Dersleri Listesi -->
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-bookmark-fill"></i> @Model.Name Dersleri</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th>Ders Kodu</th>
+                                <th>Ders Adı</th>
+                                <th>Kredi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Courses != null && Model.Courses.Any())
+                            {
+                                foreach (var course in Model.Courses)
+                                {
+                                    <tr>
+                                        <td class="fw-bold text-primary">@course.CourseCode</td>
+                                        <td class="fw-bold">@course.Title</td>
+                                        <td>@course.Credits AKTS</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="3" class="text-center py-4 text-muted">Bu departmana henüz ders eklenmemiş.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

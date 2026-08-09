@@ -12,14 +12,6 @@
         </button>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <div class="card shadow-sm border-0">
         <div class="card-body p-0">
             <table class="table table-hover table-striped mb-0">
@@ -47,11 +39,11 @@
                             <td>
                                 @if (string.IsNullOrEmpty(provider.GlobalApiKey))
                                 {
-                                    <span class="text-muted small fst-italic">Yok (Öğrenciler kendi girecek)</span>
+                                    <span class="text-muted small fst-italic">Yok</span>
                                 }
                                 else
                                 {
-                                    <span class="text-success"><i class="bi bi-key-fill"></i> Sistem Tarafından Sağlanıyor</span>
+                                    <span class="text-success"><i class="bi bi-key-fill"></i> Sistem Sağlıyor</span>
                                 }
                             </td>
                             <td>
@@ -65,7 +57,6 @@
                                 }
                             </td>
                             <td class="text-end">
-                                <!-- 🎯 YENİ: Düzenle Butonu -->
                                 <button type="button" class="btn btn-sm btn-outline-primary fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editProviderModal-@provider.Id">
                                     <i class="bi bi-pencil-square"></i> Düzenle
                                 </button>
@@ -80,52 +71,53 @@
                                     }
                                     else
                                     {
-                                        <button type="submit" class="btn btn-sm btn-outline-success fw-bold">
-                                            Aç
-                                        </button>
+                                        <button type="submit" class="btn btn-sm btn-outline-success fw-bold">Aç</button>
                                     }
                                 </form>
                             </td>
                         </tr>
-
-                        <!-- 🎯 YENİ: Her sağlayıcı için Düzenleme Modalı -->
-                        <div class="modal fade" id="editProviderModal-@provider.Id" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form asp-action="EditAiProvider" method="post">
-                                        <input type="hidden" name="id" value="@provider.Id" />
-                                        <div class="modal-header bg-primary text-white">
-                                            <h5 class="modal-title fw-bold">Sağlayıcıyı Düzenle</h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body bg-light text-start">
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Görünen Ad</label>
-                                                <input type="text" name="name" class="form-control" value="@provider.Name" required />
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Sistem Kodu</label>
-                                                <input type="text" name="providerKey" class="form-control" value="@provider.ProviderKey" required />
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold text-success">Global API Anahtarı</label>
-                                                <input type="text" name="globalApiKey" class="form-control" value="@provider.GlobalApiKey" />
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
-                                            <button type="submit" class="btn btn-primary fw-bold">Kaydet</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                     }
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<!-- 🎯 MODALLAR BURAYA TAŞINDI -->
+@foreach (var provider in Model)
+{
+    <div class="modal fade" id="editProviderModal-@provider.Id" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="EditAiProvider" method="post">
+                    <input type="hidden" name="id" value="@provider.Id" />
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold">Sağlayıcıyı Düzenle</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-light text-start">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Görünen Ad</label>
+                            <input type="text" name="name" class="form-control" value="@provider.Name" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Sistem Kodu</label>
+                            <input type="text" name="providerKey" class="form-control" value="@provider.ProviderKey" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-success">Global API Anahtarı</label>
+                            <input type="text" name="globalApiKey" class="form-control" value="@provider.GlobalApiKey" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
 
 <!-- Yeni Sağlayıcı Ekleme Modalı -->
 <div class="modal fade" id="addProviderModal" tabindex="-1">
@@ -139,17 +131,15 @@
                 <div class="modal-body bg-light">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Görünen Ad</label>
-                        <input type="text" name="name" class="form-control" placeholder="Örn: OpenAI ChatGPT 4" required />
+                        <input type="text" name="name" class="form-control" required />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Sistem Kodu (Boşluksuz, küçük harf)</label>
-                        <input type="text" name="providerKey" class="form-control" placeholder="Örn: chatgpt" required />
-                        <small class="text-muted">Bu kod arka planda API çağrılarını yönlendirmek için kullanılır.</small>
+                        <label class="form-label fw-bold">Sistem Kodu</label>
+                        <input type="text" name="providerKey" class="form-control" required />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold text-success">Global API Anahtarı (Opsiyonel)</label>
-                        <input type="text" name="globalApiKey" class="form-control" placeholder="sk-..." />
-                        <small class="text-muted">Eğer okul tüm öğrencilere ücretsiz ChatGPT sunacaksa buraya okulun anahtarını girin. Öğrenciler kendi anahtarını girecekse boş bırakın.</small>
+                        <label class="form-label fw-bold text-success">Global API Anahtarı</label>
+                        <input type="text" name="globalApiKey" class="form-control" />
                     </div>
                 </div>
                 <div class="modal-footer">

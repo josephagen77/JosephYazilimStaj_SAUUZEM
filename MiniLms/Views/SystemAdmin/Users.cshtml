@@ -1,0 +1,136 @@
+﻿@model IEnumerable<MiniLms.Models.ApplicationUser>
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<MiniLms.Models.ApplicationUser> UserManager
+
+@{
+    ViewData["Title"] = "Kullanıcı Yönetimi";
+    // Oturum açmış olan yöneticinin ID'sini alıyoruz (Kendini silmesini engellemek için)
+    var currentUserId = UserManager.GetUserId(User);
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold"><i class="bi bi-people-fill text-success"></i> Kullanıcı Yönetimi</h3>
+        <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            <i class="bi bi-person-plus-fill"></i> Yeni Kullanıcı Ekle
+        </button>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Ad Soyad</th>
+                            <th>E-Posta</th>
+                            <th>Rol</th>
+                            <th>Departman</th>
+                            <th class="text-end">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Any())
+                        {
+                            <tr><td colspan="5" class="text-center text-muted py-4">Sistemde kullanıcı bulunmuyor.</td></tr>
+                        }
+                        @foreach (var user in Model)
+                        {
+                            var roles = await UserManager.GetRolesAsync(user);
+                            var roleName = roles.FirstOrDefault() ?? "Atanmadı";
+
+                            <tr class="align-middle">
+                                <td class="fw-bold">@user.FirstName @user.LastName</td>
+                                <td>@user.Email</td>
+                                <td>
+                                    <span class="badge @(roleName == "SystemAdmin" ? "bg-danger" : roleName == "Teacher" ? "bg-primary" : roleName == "ProgramManager" ? "bg-warning text-dark" : "bg-secondary")">
+                                        @roleName
+                                    </span>
+                                </td>
+                                <td>@(user.Department?.Name ?? "-")</td>
+                                <td class="text-end">
+                                    @if (user.Id != currentUserId)
+                                    {
+                                        <form asp-action="DeleteUser" method="post" class="d-inline" onsubmit="return confirm('Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz? Tüm verileri (mesajlar, notlar vb.) silinecektir!');">
+                                            <input type="hidden" name="id" value="@user.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger fw-bold"><i class="bi bi-trash"></i> Sil</button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">Mevcut Oturum</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Yeni Kullanıcı Ekleme Modalı -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="CreateUser" method="post">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold">Yeni Kullanıcı Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Ad</label>
+                            <input type="text" name="firstName" class="form-control" required />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Soyad</label>
+                            <input type="text" name="lastName" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">E-Posta Adresi</label>
+                        <input type="email" name="email" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Geçici Şifre</label>
+                        <input type="password" name="password" class="form-control" placeholder="En az 6 karakter (Büyük/Küçük/Rakam/Özel Karakter)" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sistem Rolü</label>
+                        <select name="role" class="form-select border-success" asp-items="ViewBag.Roles" required>
+                            <option value="">-- Rol Seçiniz --</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Bağlı Olduğu Departman</label>
+                        <select name="departmentId" class="form-select" asp-items="ViewBag.Departments">
+                            <option value="">-- Bağımsız / Atanmadı --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-success fw-bold">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

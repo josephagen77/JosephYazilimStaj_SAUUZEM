@@ -6,26 +6,41 @@
     <h2 class="fw-bold text-danger mb-4"><i class="bi bi-shield-lock"></i> Sistem Yöneticisi Paneli</h2>
 
     <div class="row g-4">
-        <!-- AI Yönetim Kartı -->
+        <!-- Kullanıcı Yönetimi -->
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-top border-4 border-success h-100">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-people-fill text-success mb-3" style="font-size: 3rem;"></i>
+                    <h4 class="fw-bold">Kullanıcı Yönetimi</h4>
+                    <p class="text-muted small">Öğretmen, Öğrenci ve Program Yöneticilerini sisteme ekleyin veya silin.</p>
+                    <h3 class="fw-bold text-success mb-3">@ViewBag.TotalUsers <span class="fs-6 text-muted fw-normal">Kişi</span></h3>
+                    <a asp-action="Users" class="btn btn-outline-success w-100 fw-bold">Kullanıcıları Yönet</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Departman Yönetimi -->
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-top border-4 border-primary h-100">
+                <div class="card-body text-center p-4">
+                    <i class="bi bi-building text-primary mb-3" style="font-size: 3rem;"></i>
+                    <h4 class="fw-bold">Departmanlar</h4>
+                    <p class="text-muted small">Fakülte ve bölümleri oluşturun, Program Yöneticilerini (Bölüm Başkanı) atayın.</p>
+                    <h3 class="fw-bold text-primary mb-3">@ViewBag.TotalDepartments <span class="fs-6 text-muted fw-normal">Bölüm</span></h3>
+                    <a asp-action="Departments" class="btn btn-outline-primary w-100 fw-bold">Departmanları Yönet</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Yönetimi -->
         <div class="col-md-4">
             <div class="card shadow-sm border-0 border-top border-4 border-danger h-100">
                 <div class="card-body text-center p-4">
                     <i class="bi bi-robot text-danger mb-3" style="font-size: 3rem;"></i>
                     <h4 class="fw-bold">AI Sağlayıcıları</h4>
-                    <p class="text-muted small">Sistemdeki yapay zeka modellerini ekleyin, yönetin veya güvenlik amacıyla kapatın.</p>
-                    <a asp-action="AiProviders" class="btn btn-outline-danger w-100 fw-bold">Yönet</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Departman Yönetim Kartı (Hazırlık) -->
-        <div class="col-md-4">
-            <div class="card shadow-sm border-0 border-top border-4 border-primary h-100 opacity-75">
-                <div class="card-body text-center p-4">
-                    <i class="bi bi-building text-primary mb-3" style="font-size: 3rem;"></i>
-                    <h4 class="fw-bold">Departmanlar</h4>
-                    <p class="text-muted small">Fakülte ve bölümleri oluşturun, Program Yöneticilerini (Dekan/Bölüm Başkanı) atayın.</p>
-                    <button class="btn btn-outline-primary w-100 fw-bold" disabled>Çok Yakında</button>
+                    <p class="text-muted small">Sistemdeki yapay zeka modellerini yönetin veya güvenlik amacıyla kapatın.</p>
+                    <h3 class="fw-bold text-danger mb-3">@ViewBag.TotalAiProviders <span class="fs-6 text-muted fw-normal">Model</span></h3>
+                    <a asp-action="AiProviders" class="btn btn-outline-danger w-100 fw-bold">AI Modellerini Yönet</a>
                 </div>
             </div>
         </div>

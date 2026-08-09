@@ -22,7 +22,7 @@ namespace MiniLms.Controllers
         private readonly ICourseDocumentService _courseDocumentService;
         private readonly ICourseService _courseService;
         private readonly ApplicationDbContext _context;
-        private readonly UserManager<ApplicationUser> _userManager; // 🎯 YENİ: Kullanıcıyı bulmak için eklendi
+        private readonly UserManager<ApplicationUser> _userManager;
 
         public AiAssistantController(
             IAiService aiService,
@@ -30,7 +30,7 @@ namespace MiniLms.Controllers
             ICourseDocumentService courseDocumentService,
             ICourseService courseService,
             ApplicationDbContext context,
-            UserManager<ApplicationUser> userManager) // 🎯 YENİ
+            UserManager<ApplicationUser> userManager)
         {
             _aiService = aiService;
             _vectorDbService = vectorDbService;
@@ -40,7 +40,6 @@ namespace MiniLms.Controllers
             _userManager = userManager;
         }
 
-        // 🎯 YENİ YARDIMCI METOT: Öğrencinin API Anahtarını Veritabanından Güvenli Bir Şekilde Çeker
         private async Task<(bool success, string apiKey, string errorMessage)> ResolveApiKeyAsync(string userId, string providerKey)
         {
             var provider = await _context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == providerKey.ToLower().Trim());
@@ -51,11 +50,9 @@ namespace MiniLms.Controllers
             if (!provider.IsActive)
                 return (false, "", $"{provider.Name} Sistem Yöneticisi tarafından geçici olarak devre dışı bırakılmıştır.");
 
-            // Eğer sistem yöneticisi genel bir API anahtarı girdiyse (örn. Okulun Gemini anahtarı) onu kullan
             if (!string.IsNullOrEmpty(provider.GlobalApiKey))
                 return (true, provider.GlobalApiKey, "");
 
-            // Global anahtar yoksa, öğrencinin profiline kaydettiği özel anahtarı bul
             var userSavedKey = await _context.UserAiProviders
                 .FirstOrDefaultAsync(u => u.UserId == userId && u.AiProviderId == provider.Id);
 
@@ -92,8 +89,8 @@ namespace MiniLms.Controllers
 
             try
             {
-                // 🎯 1. API ANAHTARINI VERİTABANINDAN AL (Frontend'den GELMİYOR ARTIK)
-                var apiKeyResult = await ResolveApiKeyAsync(userId, provider);
+                // 🎯 YENİ: userId! kullanarak null koruması sağlandı
+                var apiKeyResult = await ResolveApiKeyAsync(userId!, provider);
                 if (!apiKeyResult.success)
                 {
                     return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
@@ -101,7 +98,6 @@ namespace MiniLms.Controllers
 
                 string theApiKey = apiKeyResult.apiKey;
 
-                // 2. İlgili metinleri vektör aramasından getir
                 var relevantTexts = new List<string>();
                 string selectedSourceName = "Tüm ders kaynakları";
                 string? selectedDocumentPath = null;
@@ -147,7 +143,6 @@ namespace MiniLms.Controllers
                     return Json(new { success = false, response = emptyMessage });
                 }
 
-                // 3. Geçmiş mesajları getir
                 var previousMessages = await _context.ChatMessages
                     .Where(m => m.CourseId == courseId && m.UserId == userId)
                     .OrderByDescending(m => m.Timestamp)
@@ -174,7 +169,6 @@ namespace MiniLms.Controllers
     GEÇMİŞ SOHBET: {(string.IsNullOrWhiteSpace(chatHistoryContext) ? "Henüz geçmiş sohbet yok." : chatHistoryContext)}
     ÖĞRENCİNİN YENİ SORUSU: {question}
 ";
-                // 4. API Anahtarını servise gönder
                 string aiResponse = await _aiService.SummarizeTextAsync(finalPrompt, provider, theApiKey);
 
                 if (IsAiServiceError(aiResponse))
@@ -183,9 +177,8 @@ namespace MiniLms.Controllers
                     aiResponse = BuildLocalFallbackAnswer(relevantTexts);
                 }
 
-                // 5. Mesajları veritabanına kaydet
-                var userMessage = new ChatMessage { UserId = userId, CourseId = courseId, Role = "user", Content = question, Timestamp = DateTime.Now };
-                var modelMessage = new ChatMessage { UserId = userId, CourseId = courseId, Role = "model", Content = aiResponse, Timestamp = DateTime.Now.AddSeconds(1) };
+                var userMessage = new ChatMessage { UserId = userId!, CourseId = courseId, Role = "user", Content = question, Timestamp = DateTime.Now };
+                var modelMessage = new ChatMessage { UserId = userId!, CourseId = courseId, Role = "model", Content = aiResponse, Timestamp = DateTime.Now.AddSeconds(1) };
 
                 await _context.ChatMessages.AddRangeAsync(userMessage, modelMessage);
                 await _context.SaveChangesAsync();
@@ -204,7 +197,9 @@ namespace MiniLms.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var apiKeyResult = await ResolveApiKeyAsync(userId, provider);
+                if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süresi dolmuş." }); // 🎯 YENİ
+
+                var apiKeyResult = await ResolveApiKeyAsync(userId!, provider);
                 if (!apiKeyResult.success) return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
 
                 var document = await _courseDocumentService.GetDocumentByIdAsync(documentId);
@@ -243,7 +238,9 @@ namespace MiniLms.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var apiKeyResult = await ResolveApiKeyAsync(userId, provider);
+                if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süresi dolmuş." }); // 🎯 YENİ
+
+                var apiKeyResult = await ResolveApiKeyAsync(userId!, provider);
                 if (!apiKeyResult.success) return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
 
                 var document = await _courseDocumentService.GetDocumentByIdAsync(documentId);

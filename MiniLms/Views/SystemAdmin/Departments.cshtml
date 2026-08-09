@@ -1,0 +1,101 @@
+﻿@model IEnumerable<MiniLms.Models.Department>
+
+@{
+    ViewData["Title"] = "Departman Yönetimi";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold"><i class="bi bi-building text-primary"></i> Departman Yönetimi</h3>
+        <button class="btn btn-primary fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addDepartmentModal">
+            <i class="bi bi-plus-lg"></i> Yeni Departman Oluştur
+        </button>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Departman Adı</th>
+                        <th>Bölüm Başkanı (Program Manager)</th>
+                        <th>Bağlı Kişi Sayısı</th>
+                        <th>Açılan Kurslar</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">Sistemde henüz departman bulunmuyor.</td></tr>
+                    }
+                    @foreach (var dept in Model)
+                    {
+                        <tr class="align-middle">
+                            <td class="fw-bold text-muted">@dept.Id</td>
+                            <td class="fw-bold">@dept.Name</td>
+                            <td>
+                                @if (dept.Manager != null)
+                                {
+                                    <span class="text-dark"><i class="bi bi-person-badge text-warning"></i> @dept.Manager.FirstName @dept.Manager.LastName</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small fst-italic">Atanmadı</span>
+                                }
+                            </td>
+                            <td><span class="badge bg-info text-dark">@(dept.Users?.Count ?? 0) Kullanıcı</span></td>
+                            <td><span class="badge bg-secondary">@(dept.Courses?.Count ?? 0) Ders</span></td>
+                            <td class="text-end">
+                                <form asp-action="DeleteDepartment" method="post" class="d-inline" onsubmit="return confirm('Bu departmanı silerseniz, içindeki kullanıcılar ve kurslar bağımsız (id=null) hale gelecektir. Emin misiniz?');">
+                                    <input type="hidden" name="id" value="@dept.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger fw-bold"><i class="bi bi-trash"></i> Sil</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Yeni Departman Ekleme Modalı -->
+<div class="modal fade" id="addDepartmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="CreateDepartment" method="post">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">Yeni Departman Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Departman / Fakülte Adı</label>
+                        <input type="text" name="name" class="form-control" placeholder="Örn: Bilgisayar Mühendisliği" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Program Yöneticisi (Bölüm Başkanı)</label>
+                        <select name="managerId" class="form-select" asp-items="ViewBag.Managers">
+                            <option value="">-- Atanmadı --</option>
+                        </select>
+                        <small class="text-muted d-block mt-1">Listede sadece "ProgramManager" rolüne sahip kullanıcılar görünür.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary fw-bold">Oluştur</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
