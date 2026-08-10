@@ -12,14 +12,6 @@
         </button>
     </div>
 
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
     <div class="card shadow-sm border-0">
         <div class="card-body p-0">
             <table class="table table-hover table-striped mb-0">
@@ -56,7 +48,10 @@
                             <td><span class="badge bg-info text-dark">@(dept.Users?.Count ?? 0) Kullanıcı</span></td>
                             <td><span class="badge bg-secondary">@(dept.Courses?.Count ?? 0) Ders</span></td>
                             <td class="text-end">
-                                <form asp-action="DeleteDepartment" method="post" class="d-inline" onsubmit="return confirm('Bu departmanı silerseniz, içindeki kullanıcılar ve kurslar bağımsız (id=null) hale gelecektir. Emin misiniz?');">
+                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editDepartmentModal-@dept.Id">
+                                    <i class="bi bi-pencil-square"></i> Düzenle
+                                </button>
+                                <form asp-action="DeleteDepartment" method="post" class="d-inline" onsubmit="return confirm('Bu departmanı silmek istediğinize emin misiniz?');">
                                     <input type="hidden" name="id" value="@dept.Id" />
                                     <button type="submit" class="btn btn-sm btn-outline-danger fw-bold"><i class="bi bi-trash"></i> Sil</button>
                                 </form>
@@ -69,7 +64,41 @@
     </div>
 </div>
 
-<!-- Yeni Departman Ekleme Modalı -->
+<!-- DÜZENLEME MODALLARI -->
+@foreach (var dept in Model)
+{
+    <div class="modal fade" id="editDepartmentModal-@dept.Id" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="EditDepartment" method="post">
+                    <input type="hidden" name="id" value="@dept.Id" />
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold">Departmanı Düzenle</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-light">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Departman / Fakülte Adı</label>
+                            <input type="text" name="name" class="form-control" value="@dept.Name" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Program Yöneticisi (Bölüm Başkanı)</label>
+                            <select name="managerId" class="form-select" asp-items="ViewBag.Managers">
+                                <option value="">-- Atanmadı --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- YENİ DEPARTMAN EKLEME MODALI -->
 <div class="modal fade" id="addDepartmentModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -88,7 +117,6 @@
                         <select name="managerId" class="form-select" asp-items="ViewBag.Managers">
                             <option value="">-- Atanmadı --</option>
                         </select>
-                        <small class="text-muted d-block mt-1">Listede sadece "ProgramManager" rolüne sahip kullanıcılar görünür.</small>
                     </div>
                 </div>
                 <div class="modal-footer">

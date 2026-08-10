@@ -22,17 +22,17 @@ namespace MiniLms.Controllers
             _roleManager = roleManager;
         }
 
-        // --- DASHBOARD ---
         public IActionResult Index()
         {
             ViewBag.TotalUsers = _userManager.Users.Count();
             ViewBag.TotalDepartments = _context.Departments.Count();
             ViewBag.TotalAiProviders = _context.AiProviders.Count();
+            ViewBag.TotalCourses = _context.Courses.Count();
             return View();
         }
 
         // ==========================================
-        // 1. AI SAĞLAYICI YÖNETİMİ (Mevcut Kodlar)
+        // 1. AI SAĞLAYICI YÖNETİMİ
         // ==========================================
         public async Task<IActionResult> AiProviders()
         {
@@ -88,7 +88,7 @@ namespace MiniLms.Controllers
         }
 
         // ==========================================
-        // 2. KULLANICI (USER) YÖNETİMİ 🎯 YENİ
+        // 2. KULLANICI (USER) YÖNETİMİ (CRUD)
         // ==========================================
         public async Task<IActionResult> Users()
         {
@@ -135,12 +135,42 @@ namespace MiniLms.Controllers
         }
 
         [HttpPost]
+        public async Task<IActionResult> EditUser(string id, string firstName, string lastName, string email, string role, int? departmentId)
+        {
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null) return NotFound();
+
+            user.FirstName = firstName;
+            user.LastName = lastName;
+            user.Email = email;
+            user.UserName = email;
+            user.DepartmentId = departmentId;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (result.Succeeded)
+            {
+                var currentRoles = await _userManager.GetRolesAsync(user);
+                await _userManager.RemoveFromRolesAsync(user, currentRoles);
+                if (!string.IsNullOrEmpty(role))
+                {
+                    await _userManager.AddToRoleAsync(user, role);
+                }
+                TempData["SuccessMessage"] = $"{firstName} {lastName} bilgileri güncellendi.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = "Güncelleme hatası: " + string.Join(", ", result.Errors.Select(e => e.Description));
+            }
+
+            return RedirectToAction(nameof(Users));
+        }
+
+        [HttpPost]
         public async Task<IActionResult> DeleteUser(string id)
         {
             var user = await _userManager.FindByIdAsync(id);
             if (user != null)
             {
-                // Kendini silmesini engelle
                 if (user.Id == _userManager.GetUserId(User))
                 {
                     TempData["ErrorMessage"] = "Kendi hesabınızı silemezsiniz!";
@@ -154,12 +184,11 @@ namespace MiniLms.Controllers
         }
 
         // ==========================================
-        // 3. DEPARTMAN YÖNETİMİ 🎯 YENİ
+        // 3. DEPARTMAN YÖNETİMİ (CRUD)
         // ==========================================
         public async Task<IActionResult> Departments()
         {
-            var departments = await _context.Departments.Include(d => d.Manager).ToListAsync();
-            // Program Manager (Bölüm Başkanı) seçimi için yetkili kullanıcıları getir
+            var departments = await _context.Departments.Include(d => d.Manager).Include(d => d.Users).Include(d => d.Courses).ToListAsync();
             var managers = await _userManager.GetUsersInRoleAsync("ProgramManager");
             ViewBag.Managers = new SelectList(managers, "Id", "Email");
             return View(departments);
@@ -176,6 +205,20 @@ namespace MiniLms.Controllers
         }
 
         [HttpPost]
+        public async Task<IActionResult> EditDepartment(int id, string name, string? managerId)
+        {
+            var dept = await _context.Departments.FindAsync(id);
+            if (dept == null) return NotFound();
+
+            dept.Name = name;
+            dept.ManagerId = string.IsNullOrEmpty(managerId) ? null : managerId;
+
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = "Departman bilgileri güncellendi.";
+            return RedirectToAction(nameof(Departments));
+        }
+
+        [HttpPost]
         public async Task<IActionResult> DeleteDepartment(int id)
         {
             var dept = await _context.Departments.FindAsync(id);
@@ -186,6 +229,74 @@ namespace MiniLms.Controllers
                 TempData["SuccessMessage"] = "Departman silindi.";
             }
             return RedirectToAction(nameof(Departments));
+        }
+
+        // ==========================================
+        // 4. DERS (COURSE) YÖNETİMİ (CRUD) 🎯 YENİ
+        // ==========================================
+        public async Task<IActionResult> Courses()
+        {
+            var courses = await _context.Courses
+                .Include(c => c.Department)
+                .Include(c => c.Teacher)
+                .Include(c => c.Lessons)
+                .ToListAsync();
+
+            var teachers = await _userManager.GetUsersInRoleAsync("Teacher");
+            ViewBag.Teachers = new SelectList(teachers, "Id", "Email");
+            ViewBag.Departments = new SelectList(await _context.Departments.ToListAsync(), "Id", "Name");
+
+            return View(courses);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateCourse(string title, string courseCode, string description, int credits, int? departmentId, string? teacherId)
+        {
+            var course = new Course
+            {
+                Title = title,
+                CourseCode = courseCode,
+                Description = description,
+                Credits = credits,
+                DepartmentId = departmentId,
+                TeacherId = string.IsNullOrEmpty(teacherId) ? null : teacherId
+            };
+
+            _context.Courses.Add(course);
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = $"{title} dersi sisteme eklendi.";
+            return RedirectToAction(nameof(Courses));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> EditCourse(int id, string title, string courseCode, string description, int credits, int? departmentId, string? teacherId)
+        {
+            var course = await _context.Courses.FindAsync(id);
+            if (course == null) return NotFound();
+
+            course.Title = title;
+            course.CourseCode = courseCode;
+            course.Description = description;
+            course.Credits = credits;
+            course.DepartmentId = departmentId;
+            course.TeacherId = string.IsNullOrEmpty(teacherId) ? null : teacherId;
+
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = $"{title} dersi güncellendi.";
+            return RedirectToAction(nameof(Courses));
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteCourse(int id)
+        {
+            var course = await _context.Courses.FindAsync(id);
+            if (course != null)
+            {
+                _context.Courses.Remove(course);
+                await _context.SaveChangesAsync();
+                TempData["SuccessMessage"] = "Ders sistemden silindi.";
+            }
+            return RedirectToAction(nameof(Courses));
         }
     }
 }

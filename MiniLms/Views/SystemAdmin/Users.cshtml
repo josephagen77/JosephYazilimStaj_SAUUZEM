@@ -4,7 +4,6 @@
 
 @{
     ViewData["Title"] = "Kullanıcı Yönetimi";
-    // Oturum açmış olan yöneticinin ID'sini alıyoruz (Kendini silmesini engellemek için)
     var currentUserId = UserManager.GetUserId(User);
 }
 
@@ -15,21 +14,6 @@
             <i class="bi bi-person-plus-fill"></i> Yeni Kullanıcı Ekle
         </button>
     </div>
-
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-triangle-fill"></i> @TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
 
     <div class="card shadow-sm border-0">
         <div class="card-body p-0">
@@ -64,9 +48,13 @@
                                 </td>
                                 <td>@(user.Department?.Name ?? "-")</td>
                                 <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editUserModal-@user.Id">
+                                        <i class="bi bi-pencil-square"></i> Düzenle
+                                    </button>
+
                                     @if (user.Id != currentUserId)
                                     {
-                                        <form asp-action="DeleteUser" method="post" class="d-inline" onsubmit="return confirm('Bu kullanıcıyı kalıcı olarak silmek istediğinize emin misiniz? Tüm verileri (mesajlar, notlar vb.) silinecektir!');">
+                                        <form asp-action="DeleteUser" method="post" class="d-inline" onsubmit="return confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?');">
                                             <input type="hidden" name="id" value="@user.Id" />
                                             <button type="submit" class="btn btn-sm btn-outline-danger fw-bold"><i class="bi bi-trash"></i> Sil</button>
                                         </form>
@@ -85,7 +73,60 @@
     </div>
 </div>
 
-<!-- Yeni Kullanıcı Ekleme Modalı -->
+<!-- DÜZENLEME MODALLARI -->
+@foreach (var user in Model)
+{
+    var roles = await UserManager.GetRolesAsync(user);
+    var currentRole = roles.FirstOrDefault() ?? "";
+
+    <div class="modal fade" id="editUserModal-@user.Id" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="EditUser" method="post">
+                    <input type="hidden" name="id" value="@user.Id" />
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold">Kullanıcıyı Düzenle</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-light">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Ad</label>
+                                <input type="text" name="firstName" class="form-control" value="@user.FirstName" required />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Soyad</label>
+                                <input type="text" name="lastName" class="form-control" value="@user.LastName" required />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">E-Posta Adresi</label>
+                            <input type="email" name="email" class="form-control" value="@user.Email" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Sistem Rolü</label>
+                            <select name="role" class="form-select border-primary" asp-items="ViewBag.Roles" required>
+                                <option value="">-- Rol Seçiniz --</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Bağlı Olduğu Departman</label>
+                            <select name="departmentId" class="form-select" asp-items="ViewBag.Departments">
+                                <option value="">-- Bağımsız / Atanmadı --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- YENİ KULLANICI EKLEME MODALI -->
 <div class="modal fade" id="addUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -111,7 +152,7 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Geçici Şifre</label>
-                        <input type="password" name="password" class="form-control" placeholder="En az 6 karakter (Büyük/Küçük/Rakam/Özel Karakter)" required />
+                        <input type="password" name="password" class="form-control" required />
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Sistem Rolü</label>

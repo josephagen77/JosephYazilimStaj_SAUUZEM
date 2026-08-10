@@ -1,0 +1,56 @@
+﻿@model MiniLms.Models.ApplicationUser
+@{
+    ViewData["Title"] = "Profilim";
+}
+
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white py-3">
+                    <h4 class="fw-bold mb-0"><i class="bi bi-person-circle"></i> Kullanıcı Profili</h4>
+                </div>
+                <div class="card-body p-4 bg-light">
+                    <div class="text-center mb-4">
+                        <div class="display-1 text-primary"><i class="bi bi-person-bounding-box"></i></div>
+                        <h3 class="fw-bold mb-1">@Model.FirstName @Model.LastName</h3>
+                        <p class="text-muted mb-2">@Model.Email</p>
+                        <span class="badge bg-primary fs-6">@ViewBag.Role</span>
+                    </div>
+
+                    <hr />
+
+                    <form asp-action="UpdateProfile" method="post" class="bg-white p-4 rounded shadow-sm">
+                        <h5 class="fw-bold mb-3 text-dark">Kişisel Bilgileri Düzenle</h5>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Ad</label>
+                                <input type="text" name="firstName" class="form-control" value="@Model.FirstName" required />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Soyad</label>
+                                <input type="text" name="lastName" class="form-control" value="@Model.LastName" required />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">E-Posta Adresi</label>
+                            <input type="email" class="form-control" value="@Model.Email" disabled />
+                            <small class="text-muted">E-posta adresiniz sistem kimliği olduğu için değiştirilemez.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Bağlı Olduğu Departman</label>
+                            <input type="text" class="form-control" value="@(Model.Department?.Name ?? "Bağımsız / Atanmadı")" disabled />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary fw-bold w-100 mt-2">
+                            <i class="bi bi-check-lg"></i> Bilgilerimi Güncelle
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

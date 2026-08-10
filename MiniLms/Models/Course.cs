@@ -24,5 +24,7 @@ namespace MiniLms.Models
         // Add these inside your Course class:
         public int? DepartmentId { get; set; }
         public virtual Department? Department { get; set; }
+        public object Teacher { get; internal set; }
+        public string? TeacherId { get; internal set; }
     }
 }

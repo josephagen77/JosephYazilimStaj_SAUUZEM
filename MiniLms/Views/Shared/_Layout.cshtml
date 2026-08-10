@@ -24,6 +24,15 @@
             font-weight: 800;
             border-bottom: 2px solid #0d6efd;
         }
+
+        .user-profile-link {
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+            .user-profile-link:hover {
+                opacity: 0.8;
+            }
     </style>
 </head>
 
@@ -67,6 +76,14 @@
                                 </a>
                             </li>
                         }
+                        @if (User.IsInRole("ProgramManager"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-success fw-bold @(currentController == "ProgramManager" ? "active-nav" : "")" asp-controller="ProgramManager" asp-action="Index">
+                                    <i class="bi bi-building"></i> Departmanım
+                                </a>
+                            </li>
+                        }
                         @if (User.IsInRole("Student"))
                         {
                             <li class="nav-item">
@@ -103,15 +120,16 @@
                             ? new List<string>()
                             : await UserManager.GetRolesAsync(currentUser);
 
+                            <!-- 🎯 TIKLANABİLİR PROFİL ALANI -->
                             <li class="nav-item d-flex align-items-center">
-                                <span class="navbar-text text-dark small">
-                                    <i class="bi bi-person-circle"></i>
+                                <a asp-controller="Profile" asp-action="Index" class="user-profile-link navbar-text text-dark small fw-bold">
+                                    <i class="bi bi-person-circle fs-6 text-primary"></i>
                                     @(currentUser?.FirstName ?? User.Identity?.Name)
                                     @if (roles.Any())
                                     {
                                         <span class="badge bg-primary ms-1">@string.Join(", ", roles)</span>
                                     }
-                                </span>
+                                </a>
                             </li>
                             <li class="nav-item">
                                 <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
@@ -131,14 +149,6 @@
                             <li class="nav-item">
                                 <a class="btn btn-sm btn-primary" asp-controller="Account" asp-action="Register">
                                     <i class="bi bi-person-plus"></i> Kayıt
-                                </a>
-                            </li>
-                        }
-                        @if (User.IsInRole("ProgramManager"))
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link text-success fw-bold @(currentController == "ProgramManager" ? "active-nav" : "")" asp-controller="ProgramManager" asp-action="Index">
-                                    <i class="bi bi-building"></i> Departmanım
                                 </a>
                             </li>
                         }
@@ -165,7 +175,6 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- 🎯 TERTEMİZ JAVASCRIPT: C# hataları kaldırıldı -->
     <script>
         $(document).ready(function () {
             var successMsg = '@Html.Raw(TempData["SuccessMessage"]?.ToString()?.Replace("'", "\\'"))';

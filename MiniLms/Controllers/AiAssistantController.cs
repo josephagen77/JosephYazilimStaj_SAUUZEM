@@ -11,6 +11,7 @@ using MiniLms.Data;
 using MiniLms.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 
 namespace MiniLms.Controllers
 {
@@ -23,6 +24,7 @@ namespace MiniLms.Controllers
         private readonly ICourseService _courseService;
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IConfiguration _configuration;
 
         public AiAssistantController(
             IAiService aiService,
@@ -30,7 +32,8 @@ namespace MiniLms.Controllers
             ICourseDocumentService courseDocumentService,
             ICourseService courseService,
             ApplicationDbContext context,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IConfiguration configuration)
         {
             _aiService = aiService;
             _vectorDbService = vectorDbService;
@@ -38,17 +41,36 @@ namespace MiniLms.Controllers
             _courseService = courseService;
             _context = context;
             _userManager = userManager;
+            _configuration = configuration;
         }
 
         private async Task<(bool success, string apiKey, string errorMessage)> ResolveApiKeyAsync(string userId, string providerKey)
         {
             var provider = await _context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == providerKey.ToLower().Trim());
 
+            if (provider != null && !provider.IsActive)
+            {
+                return (false, "", $"{provider.Name} Sistem Yöneticisi tarafından geçici olarak devre dışı bırakılmıştır.");
+            }
+
+            // GEMINI (Varsayılan): User Secrets'tan veya GlobalApiKey'den oku
+            if (providerKey.ToLower().Trim() == "gemini")
+            {
+                string geminiKey = !string.IsNullOrEmpty(provider?.GlobalApiKey)
+                    ? provider.GlobalApiKey
+                    : (_configuration["GeminiApiKey"] ?? _configuration["Gemini:ApiKey"] ?? string.Empty);
+
+                if (string.IsNullOrEmpty(geminiKey))
+                {
+                    return (false, "", "Sistemde tanımlı Google Gemini API anahtarı (User Secrets) bulunamadı.");
+                }
+
+                return (true, geminiKey, "");
+            }
+
+            // DİĞER MODELLER (ChatGPT, Claude vb.):
             if (provider == null)
                 return (false, "", "Geçersiz yapay zeka sağlayıcısı.");
-
-            if (!provider.IsActive)
-                return (false, "", $"{provider.Name} Sistem Yöneticisi tarafından geçici olarak devre dışı bırakılmıştır.");
 
             if (!string.IsNullOrEmpty(provider.GlobalApiKey))
                 return (true, provider.GlobalApiKey, "");
@@ -89,7 +111,6 @@ namespace MiniLms.Controllers
 
             try
             {
-                // 🎯 YENİ: userId! kullanarak null koruması sağlandı
                 var apiKeyResult = await ResolveApiKeyAsync(userId!, provider);
                 if (!apiKeyResult.success)
                 {
@@ -197,7 +218,7 @@ namespace MiniLms.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süresi dolmuş." }); // 🎯 YENİ
+                if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süresi dolmuş." });
 
                 var apiKeyResult = await ResolveApiKeyAsync(userId!, provider);
                 if (!apiKeyResult.success) return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
@@ -238,7 +259,7 @@ namespace MiniLms.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süresi dolmuş." }); // 🎯 YENİ
+                if (string.IsNullOrEmpty(userId)) return Json(new { success = false, response = "Oturum süresi dolmuş." });
 
                 var apiKeyResult = await ResolveApiKeyAsync(userId!, provider);
                 if (!apiKeyResult.success) return Json(new { success = false, response = $"⚠️ Hata: {apiKeyResult.errorMessage}" });
@@ -267,7 +288,6 @@ namespace MiniLms.Controllers
             }
         }
 
-        // --- Helper & Parsing Methods ---
         private static bool IsAiServiceError(string response)
         {
             return response.Contains("API Anahtarı geçerli değil", StringComparison.OrdinalIgnoreCase) ||

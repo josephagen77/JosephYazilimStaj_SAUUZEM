@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using MiniLms.Models; // Kendi proje adınıza göre ayarlayın
+using Microsoft.EntityFrameworkCore;
+using MiniLms.Models;
 
 namespace MiniLms.Data
 {
@@ -7,16 +8,14 @@ namespace MiniLms.Data
     {
         public static async Task SeedRolesAndAdminAsync(IServiceProvider serviceProvider)
         {
-            // UserManager ve RoleManager servislerini çağırıyoruz
             var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
             var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var context = serviceProvider.GetRequiredService<ApplicationDbContext>();
 
-            // 1. Sistemdeki Temel Rolleri Oluştur
+            // 1. Temel Rolleri Oluştur
             string[] roleNames = { "SystemAdmin", "ProgramManager", "Teacher", "Student" };
-
             foreach (var roleName in roleNames)
             {
-                // Eğer rol yoksa, veritabanına ekle
                 if (!await roleManager.RoleExistsAsync(roleName))
                 {
                     await roleManager.CreateAsync(new IdentityRole(roleName));
@@ -25,11 +24,10 @@ namespace MiniLms.Data
 
             // 2. Varsayılan Sistem Yöneticisi Hesabını Oluştur
             string adminEmail = "admin@minilms.com";
-            string adminPassword = "Password123*"; // Güçlü bir şifre olmalı
+            string adminPassword = "Password123*";
 
             var adminUser = await userManager.FindByEmailAsync(adminEmail);
-
-            if (adminUser == null) // Eğer admin hesabı yoksa, sıfırdan oluştur
+            if (adminUser == null)
             {
                 adminUser = new ApplicationUser
                 {
@@ -37,16 +35,28 @@ namespace MiniLms.Data
                     Email = adminEmail,
                     FirstName = "Sistem",
                     LastName = "Yöneticisi",
-                    EmailConfirmed = true // E-posta onayını direkt true yapıyoruz
+                    EmailConfirmed = true
                 };
 
                 var result = await userManager.CreateAsync(adminUser, adminPassword);
-
                 if (result.Succeeded)
                 {
-                    // Oluşturulan hesaba "SystemAdmin" yetkisini ver
                     await userManager.AddToRoleAsync(adminUser, "SystemAdmin");
                 }
+            }
+
+            // 3. Varsayılan Gemini AI Modeli Ekle (Sistem Yöneticisi Kapatıp Açabilsin)
+            var geminiProvider = await context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == "gemini");
+            if (geminiProvider == null)
+            {
+                context.AiProviders.Add(new AiProvider
+                {
+                    Name = "Google Gemini (Varsayılan Kurumsal Mod)",
+                    ProviderKey = "gemini",
+                    IsActive = true,
+                    GlobalApiKey = null // Null olduğu için User Secrets'tan çekecek
+                });
+                await context.SaveChangesAsync();
             }
         }
     }

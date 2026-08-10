@@ -1,0 +1,173 @@
+﻿@model IEnumerable<MiniLms.Models.Course>
+
+@{
+    ViewData["Title"] = "Ders Yönetimi";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold"><i class="bi bi-book-fill text-warning"></i> Ders ve Müfredat Yönetimi</h3>
+        <button class="btn btn-warning fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#addCourseModal">
+            <i class="bi bi-plus-lg"></i> Yeni Ders Ekle
+        </button>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ders Kodu</th>
+                        <th>Ders Adı</th>
+                        <th>Kredi (AKTS)</th>
+                        <th>Departman</th>
+                        <th>Öğretmen</th>
+                        <th class="text-end">İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">Sistemde ders bulunmuyor.</td></tr>
+                    }
+                    @foreach (var course in Model)
+                    {
+                        <tr class="align-middle">
+                            <td class="fw-bold text-primary">@course.CourseCode</td>
+                            <td class="fw-bold">@course.Title</td>
+                            <td><span class="badge bg-secondary">@course.Credits AKTS</span></td>
+                            <td>@(course.Department?.Name ?? "Genel / Bağımsız")</td>
+                            <td>
+                                @if (course.Teacher is MiniLms.Models.ApplicationUser teacherApp)
+                                {
+                                    <span class="text-dark">@teacherApp.FirstName @teacherApp.LastName</span>
+                                }
+                                else if (course.Teacher != null)
+                                {
+                                    <span class="text-dark">Kullanıcı Tanımlı (ID: @course.TeacherId)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small fst-italic">Atanmadı</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editCourseModal-@course.Id">
+                                    <i class="bi bi-pencil-square"></i> Düzenle
+                                </button>
+                                <form asp-action="DeleteCourse" method="post" class="d-inline" onsubmit="return confirm('Bu dersi silmek istediğinize emin misiniz?');">
+                                    <input type="hidden" name="id" value="@course.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger fw-bold"><i class="bi bi-trash"></i> Sil</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- DÜZENLEME MODALLARI -->
+@foreach (var course in Model)
+{
+    <div class="modal fade" id="editCourseModal-@course.Id" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="EditCourse" method="post">
+                    <input type="hidden" name="id" value="@course.Id" />
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold">Dersi Düzenle</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body bg-light">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Ders Adı</label>
+                            <input type="text" name="title" class="form-control" value="@course.Title" required />
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Ders Kodu</label>
+                                <input type="text" name="courseCode" class="form-control" value="@course.CourseCode" required />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Kredi (AKTS)</label>
+                                <input type="number" name="credits" class="form-control" value="@course.Credits" required />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Açıklama</label>
+                            <textarea name="description" class="form-control" rows="2">@course.Description</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Departman</label>
+                            <select name="departmentId" class="form-select" asp-items="ViewBag.Departments">
+                                <option value="">-- Bağımsız --</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Sorumlu Öğretmen</label>
+                            <select name="teacherId" class="form-select" asp-items="ViewBag.Teachers">
+                                <option value="">-- Atanmadı --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                        <button type="submit" class="btn btn-primary fw-bold">Güncelle</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- YENİ DERS EKLEME MODALI -->
+<div class="modal fade" id="addCourseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="CreateCourse" method="post">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title fw-bold">Yeni Ders Ekle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ders Adı</label>
+                        <input type="text" name="title" class="form-control" placeholder="Örn: Yapay Zekaya Giriş" required />
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Ders Kodu</label>
+                            <input type="text" name="courseCode" class="form-control" placeholder="Örn: BSM301" required />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Kredi (AKTS)</label>
+                            <input type="number" name="credits" class="form-control" value="5" required />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Açıklama</label>
+                        <textarea name="description" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Departman</label>
+                        <select name="departmentId" class="form-select" asp-items="ViewBag.Departments">
+                            <option value="">-- Bağımsız --</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Sorumlu Öğretmen</label>
+                        <select name="teacherId" class="form-select" asp-items="ViewBag.Teachers">
+                            <option value="">-- Atanmadı --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-warning fw-bold">Ekle</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
