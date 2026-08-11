@@ -20,12 +20,18 @@
                                 <option value="">-- Model Seçiniz --</option>
                             </select>
                         </div>
-                        <div class="mb-3">
+
+                        <div class="mb-3" id="apiKeyContainer">
                             <label class="form-label fw-bold">API Anahtarınız</label>
-                            <input type="password" name="apiKey" class="form-control" placeholder="sk-..." required />
+                            <input type="password" id="apiKeyInput" name="apiKey" class="form-control" placeholder="sk-..." required />
                             <small class="text-muted">Anahtarlarınız şifrelenerek saklanır ve sadece size aittir.</small>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="bi bi-save"></i> Kaydet</button>
+
+                        <div id="geminiAlert" class="alert alert-success mt-3" style="display: none;">
+                            <i class="bi bi-info-circle-fill"></i> <strong>Google Gemini</strong> sistemin varsayılan yapay zekasıdır ve Sistem Yöneticisi tarafından yönetilmektedir. Öğrenci olarak API anahtarı girmenize gerek yoktur; sistemdeki araçları hemen kullanmaya başlayabilirsiniz!
+                        </div>
+
+                        <button type="submit" id="saveBtn" class="btn btn-primary w-100 fw-bold"><i class="bi bi-save"></i> Kaydet</button>
                     </form>
 
                     <div id="videoContainer" class="mt-4 d-none">
@@ -81,7 +87,6 @@
     </div>
 </div>
 
-<!-- 🎯 TABLODAN ÇIKARTILAN MODALLAR BURAYA GELDİ -->
 @foreach (var item in Model)
 {
     <div class="modal fade" id="editApiKeyModal-@item.Id" tabindex="-1">
@@ -118,15 +123,34 @@
                 var videoContainer = $('#videoContainer');
                 var tutorialVideo = $('#tutorialVideo');
 
-                if (selectedText.includes("chatgpt")) {
-                    tutorialVideo.attr("src", "https://www.youtube.com/embed/CGncYPblQA8");
-                    videoContainer.removeClass("d-none");
-                } else if (selectedText.includes("claude")) {
-                    tutorialVideo.attr("src", "https://www.youtube.com/embed/nfOFl9RyiWw");
-                    videoContainer.removeClass("d-none");
-                } else {
+                var apiKeyContainer = $('#apiKeyContainer');
+                var apiKeyInput = $('#apiKeyInput');
+                var geminiAlert = $('#geminiAlert');
+                var saveBtn = $('#saveBtn');
+
+                if (selectedText.includes("gemini")) {
+                    apiKeyContainer.hide();
+                    apiKeyInput.removeAttr("required");
+                    geminiAlert.fadeIn();
+                    saveBtn.hide();
                     videoContainer.addClass("d-none");
                     tutorialVideo.attr("src", "");
+                } else {
+                    apiKeyContainer.show();
+                    apiKeyInput.attr("required", "required");
+                    geminiAlert.hide();
+                    saveBtn.show();
+
+                    if (selectedText.includes("chatgpt")) {
+                        tutorialVideo.attr("src", "https://www.youtube.com/embed/CGncYPblQA8");
+                        videoContainer.removeClass("d-none");
+                    } else if (selectedText.includes("claude")) {
+                        tutorialVideo.attr("src", "https://www.youtube.com/embed/nfOFl9RyiWw");
+                        videoContainer.removeClass("d-none");
+                    } else {
+                        videoContainer.addClass("d-none");
+                        tutorialVideo.attr("src", "");
+                    }
                 }
             });
         });

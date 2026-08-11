@@ -226,12 +226,22 @@ namespace MiniLms.Controllers
                 var document = await _courseDocumentService.GetDocumentByIdAsync(documentId);
                 if (document == null || document.CourseId != courseId) return Json(new { success = false, response = "Seçilen doküman bu derse ait değil." });
 
-                var documentTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId, maxChunks: 4);
+                // 🎯 IMPROVED: Increased maxChunks to 10 so it reads much more of the document
+                var documentTexts = await _courseDocumentService.GetDocumentTextChunksAsync(documentId, maxChunks: 10);
                 if (documentTexts.Count == 0) return Json(new { success = false, response = "Bu dokümandan özet üretilecek metin çıkarılamadı." });
 
                 string sourceText = string.Join("\n\n", documentTexts);
+
+                // 🎯 IMPROVED: Detailed structuring constraints in the prompt
                 string summaryPrompt = $@"
-    Aşağıdaki ders dokümanını öğrencinin hızlıca anlayacağı şekilde özetle.
+    Sen bu dersin yapay zeka asistanısın. Aşağıdaki ders dokümanını DETAYLI VE KAPSAMLI bir şekilde özetle.
+
+    YAPILANDIRMA KURALLARI (Lütfen Markdown formatında yanıt ver):
+    1. **Genel Bakış:** Dokümanın ana amacını 2-3 cümleyle açıklayan bir giriş yap.
+    2. **Kilit Kavramlar:** Dokümanda geçen önemli tanım ve kavramları maddeler halinde listele.
+    3. **Detaylı Bölüm Özeti:** Konuyu alt başlıklar halinde inceleyip ana fikirleri detaylandır.
+    4. **Önemli Çıkarımlar:** Öğrencinin sınavlarda/derslerde bilmesi gereken kritik noktaları vurgula.
+
     DİL KURALI: Özetin dilini, kaynak dokümanın orijinal dilinde oluştur.
 
     DOKÜMAN ADI: {document.FileName}

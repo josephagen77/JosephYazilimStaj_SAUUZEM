@@ -137,32 +137,39 @@
                                     }
                                 </select>
                             </div>
+
                             <div class="col-12">
-                                <!-- 🎯 YENİ: API Anahtarlarım Butonu eklendi -->
-                                <div class="d-flex justify-content-between align-items-end mb-1">
-                                    <label class="form-label small fw-bold text-secondary mb-0">Yapay Zeka Sağlayıcısı</label>
-                                    @if (User.IsInRole("Student"))
-                                    {
-                                        <a asp-controller="StudentProfile" asp-action="ApiKeys" class="btn btn-sm py-0 btn-warning fw-bold text-dark" style="font-size: 0.75rem;">
-                                            <i class="bi bi-key-fill"></i> Anahtarlarımı Yönet
-                                        </a>
-                                    }
-                                </div>
-                                <select class="form-select form-select-sm border-primary" name="provider" id="aiProviderSelect">
-                                    @foreach (var provider in activeProviders)
-                                    {
-                                        // 🎯 YENİ: Gemini'yi varsayılan (selected) yap
-                                        if (provider.ProviderKey.ToLower() == "gemini")
+                                @if (User.IsInRole("Student"))
+                                {
+                                    <div class="d-flex justify-content-between align-items-end mb-1">
+                                        <label class="form-label small fw-bold text-secondary mb-0">Yapay Zeka Sağlayıcısı</label>
+                                    </div>
+                                    <select class="form-select form-select-sm border-primary" name="provider" id="aiProviderSelect">
+                                        @foreach (var provider in activeProviders)
                                         {
-                                            <option value="@provider.ProviderKey" selected>@provider.Name</option>
+                                            if (provider.ProviderKey.ToLower() == "gemini")
+                                            {
+                                                <option value="@provider.ProviderKey" selected>@provider.Name</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@provider.ProviderKey">@provider.Name</option>
+                                            }
                                         }
-                                        else
-                                        {
-                                            <option value="@provider.ProviderKey">@provider.Name</option>
-                                        }
-                                    }
-                                </select>
+                                    </select>
+
+                                    <div id="customApiKeyAlert" class="alert alert-warning mt-2 mb-0 py-2 px-3 small border-warning" style="display: none;">
+                                        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                        Bu modeli kullanmak için API anahtarı eklemelisiniz.
+                                        <a asp-controller="StudentProfile" asp-action="ApiKeys" class="fw-bold text-dark text-decoration-underline ms-1">Buradan Ekleyin <i class="bi bi-arrow-right"></i></a>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <input type="hidden" name="provider" id="aiProviderSelect" value="gemini" />
+                                }
                             </div>
+
                         </div>
 
                         <div class="input-group mt-2">
@@ -282,7 +289,7 @@
 
                 <div id="quizLoading" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted mt-3 mb-0">Seçili yapay zeka sağlayıcısı quizi hazırlıyor. Lütfen bekleyin...</p>
+                    <p class="text-muted mt-3 mb-0">Yapay zeka sistemi quizi hazırlıyor. Lütfen bekleyin...</p>
                 </div>
 
                 <div id="quizQuestionArea" class="d-none">
@@ -312,6 +319,15 @@
 
     <script>
         $(document).ready(function () {
+
+            $("#aiProviderSelect").change(function () {
+                var selectedProvider = $(this).val();
+                if (selectedProvider && selectedProvider !== "gemini") {
+                    $("#customApiKeyAlert").slideDown(200);
+                } else {
+                    $("#customApiKeyAlert").slideUp(200);
+                }
+            });
 
             const chatWindow = $("#chatWindowContainer");
 
@@ -396,7 +412,7 @@
 
             function getAjaxData(baseData) {
                 return Object.assign(baseData, {
-                    provider: $("#aiProviderSelect").val()
+                    provider: $("#aiProviderSelect").val() || "gemini"
                 });
             }
 
