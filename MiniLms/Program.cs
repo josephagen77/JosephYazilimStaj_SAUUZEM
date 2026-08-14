@@ -82,7 +82,25 @@ builder.Services.AddScoped<IStudentAnalyticsService, StudentAnalyticsService>();
 
 // HTTPCLIENT ENTEGRASYONLU AI VE VECTOR SERVİSLERİ
 builder.Services.AddHttpClient<IAiService, AiService>();
-builder.Services.AddHttpClient<IVectorDbService, VectorDbService>();
+
+// 🎯 YENİ: Gerçek Qdrant Cloud Bağlantısı (Header Enjeksiyonu)
+builder.Services.AddHttpClient<IVectorDbService, VectorDbService>(client =>
+{
+    var qdrantUrl = builder.Configuration["AiServices:Qdrant:BaseUrl"];
+    var qdrantApiKey = builder.Configuration["AiServices:Qdrant:ApiKey"];
+
+    if (!string.IsNullOrEmpty(qdrantUrl))
+    {
+        client.BaseAddress = new Uri(qdrantUrl);
+    }
+
+    // Qdrant Cloud güvenlik doğrulaması için API Key başlığı ('api-key')
+    if (!string.IsNullOrEmpty(qdrantApiKey) && qdrantApiKey != "USE_USER_SECRETS")
+    {
+        client.DefaultRequestHeaders.Add("api-key", qdrantApiKey);
+    }
+});
+
 builder.Services.AddHostedService<VectorSyncService>();
 
 // 4. AUTOMAPPER PROFİL HARİTALAMASINI KAYDET
@@ -124,7 +142,6 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-// ... diğer app.UseRouting() / app.UseAuthentication() ayarlarınız ...
 
 // 🎯 YENİ: Uygulama başlarken Veritabanını kontrol et ve Admin'i oluştur
 using (var scope = app.Services.CreateScope())

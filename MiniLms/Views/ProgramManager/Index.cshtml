@@ -2,6 +2,8 @@
 
 @{
     ViewData["Title"] = "Departman Yönetimi";
+    var teachers = ViewBag.Teachers as List<MiniLms.Models.ApplicationUser>;
+    var students = ViewBag.Students as List<MiniLms.Models.ApplicationUser>;
 }
 
 <div class="container mt-4">
@@ -12,66 +14,234 @@
         </div>
     </div>
 
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success shadow-sm alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
     @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger shadow-sm">
+        <div class="alert alert-danger shadow-sm alert-dismissible fade show" role="alert">
             <i class="bi bi-exclamation-triangle-fill"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
 
+    <!-- İstatistikler -->
     <div class="row g-4 mb-4">
-        <!-- Departman İstatistikleri -->
-        <div class="col-md-6">
-            <div class="card shadow-sm border-0 border-start border-4 border-primary h-100 bg-light">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-4 border-primary bg-light">
                 <div class="card-body">
-                    <h5 class="fw-bold text-primary"><i class="bi bi-book"></i> Bölüme Ait Dersler</h5>
-                    <h2 class="display-5 fw-bold mb-0">@ViewBag.TotalCourses</h2>
+                    <h5 class="fw-bold text-primary"><i class="bi bi-book"></i> Toplam Ders</h5>
+                    <h2 class="fw-bold mb-0">@ViewBag.TotalCourses</h2>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card shadow-sm border-0 border-start border-4 border-success h-100 bg-light">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-4 border-success bg-light">
                 <div class="card-body">
-                    <h5 class="fw-bold text-success"><i class="bi bi-people"></i> Bölüme Kayıtlı Kişiler</h5>
-                    <h2 class="display-5 fw-bold mb-0">@ViewBag.TotalUsers</h2>
+                    <h5 class="fw-bold text-success"><i class="bi bi-person-video3"></i> Eğitmenler</h5>
+                    <h2 class="fw-bold mb-0">@teachers?.Count</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0 border-start border-4 border-warning bg-light">
+                <div class="card-body">
+                    <h5 class="fw-bold text-warning"><i class="bi bi-mortarboard-fill"></i> Öğrenciler</h5>
+                    <h2 class="fw-bold mb-0">@students?.Count</h2>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <!-- Departman Dersleri Listesi -->
-        <div class="col-12">
+    <!-- SEKMELER (TABS) -->
+    <ul class="nav nav-tabs fw-bold mb-4" id="manageTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active text-dark" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button" role="tab"><i class="bi bi-journal-bookmark-fill text-primary"></i> Ders Yönetimi</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" id="teachers-tab" data-bs-toggle="tab" data-bs-target="#teachers" type="button" role="tab"><i class="bi bi-person-video3 text-success"></i> Eğitmen Yönetimi</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-dark" id="students-tab" data-bs-toggle="tab" data-bs-target="#students" type="button" role="tab"><i class="bi bi-mortarboard-fill text-warning"></i> Öğrenci Yönetimi</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="manageTabsContent">
+        <!-- 🎯 1. DERS YÖNETİMİ TAB'I -->
+        <div class="tab-pane fade show active" id="courses" role="tabpanel">
             <div class="card shadow-sm border-0">
-                <div class="card-header bg-dark text-white py-3">
-                    <h5 class="mb-0 fw-bold"><i class="bi bi-journal-bookmark-fill"></i> @Model.Name Dersleri</h5>
+                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">@Model.Name Dersleri</h5>
+                    <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addCourseModal"><i class="bi bi-plus-lg"></i> Yeni Ders Ekle</button>
                 </div>
                 <div class="card-body p-0">
-                    <table class="table table-hover mb-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-3">Ders Kodu</th>
+                                    <th>Ders Adı</th>
+                                    <th>Kredi</th>
+                                    <th>Eğitmen Ataması</th>
+                                    <th class="text-center">Durum</th>
+                                    <th class="text-end pe-3">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Courses != null && Model.Courses.Any())
+                                {
+                                    foreach (var course in Model.Courses)
+                                    {
+                                        <tr>
+                                            <td class="ps-3 fw-bold text-primary">@course.CourseCode</td>
+                                            <td class="fw-bold">@course.Title</td>
+                                            <td><span class="badge bg-secondary">@course.Credits AKTS</span></td>
+
+                                            <td style="min-width: 200px;">
+                                                <form asp-action="AssignTeacher" method="post" class="d-flex gap-2 mb-0">
+                                                    <input type="hidden" name="courseId" value="@course.Id" />
+                                                    <select name="teacherId" class="form-select form-select-sm border-primary">
+                                                        <option value="">-- Atanmadı --</option>
+                                                        @if (teachers != null)
+                                                        {
+                                                            foreach (var teacher in teachers)
+                                                            {
+                                                                <option value="@teacher.Id" selected="@(course.TeacherId == teacher.Id ? "selected" : null)">@teacher.FirstName @teacher.LastName</option>
+                                                            }
+                                                        }
+                                                    </select>
+                                                    <button type="submit" class="btn btn-sm btn-primary fw-bold">Ata</button>
+                                                </form>
+                                            </td>
+
+                                            <td class="text-center">
+                                                @if (course.IsActive)
+                                                {
+                                                    <span class="badge bg-success"><i class="bi bi-unlock-fill"></i> Açık</span>
+                                                }
+                                                else
+                                                {
+
+                                                    <span class="badge bg-danger"><i class="bi bi-lock-fill"></i> Kapalı</span>
+                                                }
+                                            </td>
+
+                                            <td class="text-end pe-3">
+                                                <div class="btn-group">
+                                                    <form asp-action="ToggleCourseStatus" method="post" class="d-inline">
+                                                        <input type="hidden" name="courseId" value="@course.Id" />
+                                                        <button type="submit" class="btn btn-sm @(course.IsActive ? "btn-outline-warning" : "btn-outline-success") fw-bold" title="Aç/Kapat">
+                                                            <i class="bi bi-power"></i>
+                                                        </button>
+                                                    </form>
+                                                    <button class="btn btn-sm btn-outline-primary fw-bold" data-bs-toggle="modal" data-bs-target="#editCourseModal-@course.Id" title="Düzenle"><i class="bi bi-pencil"></i></button>
+                                                    <form asp-action="DeleteCourse" method="post" class="d-inline">
+                                                        <input type="hidden" name="courseId" value="@course.Id" />
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" onclick="return confirm('Dersi tamamen silmek istediğinize emin misiniz?');" title="Sil"><i class="bi bi-trash"></i></button>
+                                                    </form>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td colspan="6" class="text-center py-4 text-muted">Kayıtlı ders bulunmuyor.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🎯 2. EĞİTMEN YÖNETİMİ TAB'I -->
+        <div class="tab-pane fade" id="teachers" role="tabpanel">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-success text-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">Bölüm Eğitmenleri</h5>
+                    <button class="btn btn-sm btn-light text-success fw-bold" data-bs-toggle="modal" data-bs-target="#addUserModal" onclick="setRole('Teacher')"><i class="bi bi-plus-lg"></i> Eğitmen Ekle</button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light">
                             <tr>
-                                <th>Ders Kodu</th>
-                                <th>Ders Adı</th>
-                                <th>Kredi</th>
+                                <th class="ps-3">Ad Soyad</th>
+                                <th>Email</th>
+                                <th class="text-end pe-3">İşlemler</th>
                             </tr>
                         </thead>
                         <tbody>
-                            @if (Model.Courses != null && Model.Courses.Any())
+                            @if (teachers != null && teachers.Any())
                             {
-                                foreach (var course in Model.Courses)
+                                foreach (var teacher in teachers)
                                 {
                                     <tr>
-                                        <td class="fw-bold text-primary">@course.CourseCode</td>
-                                        <td class="fw-bold">@course.Title</td>
-                                        <td>@course.Credits AKTS</td>
+                                        <td class="ps-3 fw-bold">@teacher.FirstName @teacher.LastName</td>
+                                        <td>@teacher.Email</td>
+                                        <td class="text-end pe-3">
+                                            <button class="btn btn-sm btn-outline-primary fw-bold" data-bs-toggle="modal" data-bs-target="#editUserModal-@teacher.Id"><i class="bi bi-pencil"></i> Düzenle</button>
+                                            <form asp-action="DeleteUser" method="post" class="d-inline">
+                                                <input type="hidden" name="userId" value="@teacher.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" onclick="return confirm('Kullanıcıyı silmek istediğinize emin misiniz?');"><i class="bi bi-trash"></i> Sil</button>
+                                            </form>
+                                        </td>
                                     </tr>
                                 }
                             }
                             else
                             {
-                                <tr>
-                                    <td colspan="3" class="text-center py-4 text-muted">Bu departmana henüz ders eklenmemiş.</td>
-                                </tr>
+                                <tr><td colspan="3" class="text-center py-4 text-muted">Kayıtlı eğitmen bulunmuyor.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🎯 3. ÖĞRENCİ YÖNETİMİ TAB'I -->
+        <div class="tab-pane fade" id="students" role="tabpanel">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-warning text-dark py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">Bölüm Öğrencileri</h5>
+                    <button class="btn btn-sm btn-dark fw-bold" data-bs-toggle="modal" data-bs-target="#addUserModal" onclick="setRole('Student')"><i class="bi bi-plus-lg"></i> Öğrenci Ekle</button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-3">Öğrenci No</th>
+                                <th>Ad Soyad</th>
+                                <th>Email</th>
+                                <th class="text-end pe-3">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (students != null && students.Any())
+                            {
+                                foreach (var student in students)
+                                {
+                                    <tr>
+                                        <td class="ps-3 fw-bold text-primary">@student.StudentNumber</td>
+                                        <td class="fw-bold">@student.FirstName @student.LastName</td>
+                                        <td>@student.Email</td>
+                                        <td class="text-end pe-3">
+                                            <button class="btn btn-sm btn-outline-primary fw-bold" data-bs-toggle="modal" data-bs-target="#editUserModal-@student.Id"><i class="bi bi-pencil"></i> Düzenle</button>
+                                            <form asp-action="DeleteUser" method="post" class="d-inline">
+                                                <input type="hidden" name="userId" value="@student.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" onclick="return confirm('Öğrenciyi silmek istediğinize emin misiniz?');"><i class="bi bi-trash"></i> Sil</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="4" class="text-center py-4 text-muted">Kayıtlı öğrenci bulunmuyor.</td></tr>
                             }
                         </tbody>
                     </table>
@@ -80,3 +250,224 @@
         </div>
     </div>
 </div>
+
+<!-- ========================================== -->
+<!-- 🎯 DİNAMİK MODALLAR (TABLOLARIN DIŞINDA) 🎯 -->
+<!-- ========================================== -->
+@if (Model.Courses != null)
+{
+    foreach (var course in Model.Courses)
+    {
+        <div class="modal fade" id="editCourseModal-@course.Id" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="EditCourse" method="post">
+                        <input type="hidden" name="courseId" value="@course.Id" />
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title fw-bold">Dersi Düzenle</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body bg-light">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Ders Adı</label>
+                                <input type="text" name="title" value="@course.Title" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Ders Kodu</label>
+                                <input type="text" name="courseCode" value="@course.CourseCode" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Kredi (AKTS)</label>
+                                <input type="number" name="credits" value="@course.Credits" class="form-control" required />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                            <button type="submit" class="btn btn-primary fw-bold">Güncelle</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (teachers != null)
+{
+    foreach (var teacher in teachers)
+    {
+        <div class="modal fade" id="editUserModal-@teacher.Id" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="EditUser" method="post">
+                        <input type="hidden" name="userId" value="@teacher.Id" />
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title fw-bold">Eğitmeni Düzenle</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body bg-light">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Ad</label>
+                                <input type="text" name="firstName" value="@teacher.FirstName" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Soyad</label>
+                                <input type="text" name="lastName" value="@teacher.LastName" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Email Adresi</label>
+                                <input type="email" name="email" value="@teacher.Email" class="form-control" required />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                            <button type="submit" class="btn btn-primary fw-bold">Güncelle</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (students != null)
+{
+    foreach (var student in students)
+    {
+        <div class="modal fade" id="editUserModal-@student.Id" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form asp-action="EditUser" method="post">
+                        <input type="hidden" name="userId" value="@student.Id" />
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title fw-bold">Öğrenciyi Düzenle</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body bg-light">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Öğrenci Numarası</label>
+                                <input type="text" name="studentNumber" value="@student.StudentNumber" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Ad</label>
+                                <input type="text" name="firstName" value="@student.FirstName" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Soyad</label>
+                                <input type="text" name="lastName" value="@student.LastName" class="form-control" required />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Email Adresi</label>
+                                <input type="email" name="email" value="@student.Email" class="form-control" required />
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">İptal</button>
+                            <button type="submit" class="btn btn-primary fw-bold">Güncelle</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<!-- ========================================== -->
+<!-- 🎯 STATİK EKLENTİ MODALLARI 🎯 -->
+<!-- ========================================== -->
+<div class="modal fade" id="addUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="AddUser" method="post">
+                <input type="hidden" name="role" id="newUserRole" value="Teacher" />
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title fw-bold" id="addUserModalLabel">Yeni Kullanıcı Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <!-- Sadece öğrenci seçildiğinde görünür olacak alan -->
+                    <div class="mb-3" id="studentNumberContainer" style="display: none;">
+                        <label class="form-label fw-bold text-primary">Öğrenci Numarası</label>
+                        <input type="text" name="studentNumber" id="studentNumberInput" class="form-control border-primary" placeholder="Örn: B266200571" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ad</label>
+                        <input type="text" name="firstName" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Soyad</label>
+                        <input type="text" name="lastName" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email Adresi</label>
+                        <input type="email" name="email" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Geçici Şifre</label>
+                        <input type="password" name="password" class="form-control" placeholder="En az 6 karakter" required minlength="6" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-success fw-bold"><i class="bi bi-save"></i> Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addCourseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-action="AddCourse" method="post">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-bold">Yeni Ders Ekle</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ders Adı</label>
+                        <input type="text" name="title" class="form-control" placeholder="Örn: İleri Veritabanı Sistemleri" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ders Kodu</label>
+                        <input type="text" name="courseCode" class="form-control" placeholder="Örn: BSM301" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Kredi (AKTS)</label>
+                        <input type="number" name="credits" class="form-control" value="3" required />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary fw-bold" data-bs-dismiss="modal">İptal</button>
+                    <button type="submit" class="btn btn-primary fw-bold"><i class="bi bi-save"></i> Dersi Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function setRole(roleName) {
+            document.getElementById('newUserRole').value = roleName;
+            var modalTitle = document.getElementById('addUserModalLabel');
+            var studentNumberContainer = document.getElementById('studentNumberContainer');
+            var studentNumberInput = document.getElementById('studentNumberInput');
+
+            if (roleName === 'Teacher') {
+                modalTitle.innerText = "Yeni Eğitmen Ekle";
+                // Öğretmense öğrenci no alanını gizle ve zorunluluğunu kaldır
+                studentNumberContainer.style.display = 'none';
+                studentNumberInput.removeAttribute('required');
+                studentNumberInput.value = ''; // İçini temizle
+            } else {
+                modalTitle.innerText = "Yeni Öğrenci Ekle";
+                // Öğrenciyse numarayı göster ve zorunlu yap
+                studentNumberContainer.style.display = 'block';
+                studentNumberInput.setAttribute('required', 'required');
+            }
+        }
+    </script>
+}

@@ -23,10 +23,10 @@ namespace MiniLms.Services
             _httpClient = httpClient;
             _apiKey = configuration["AiServices:Gemini:ApiKey"] ?? "";
 
-            // 🎯 GÜNCELLENDİ: Yeni nesil 3.6 ve 3.5 modelleri tanımlandı
-            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-3.6-flash";
-            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-3.5-flash-lite";
-            _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "text-embedding-004";
+            // 🎯 GÜNCELLENDİ: Gerçek Gemini Modellerine (1.5) ve Embedding-001'e geçirildi
+            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-1.5-flash";
+            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-1.5-flash";
+            _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "embedding-001";
         }
 
         public async Task<string> GenerateQuizAsync(string text, int questionCount = 5, string provider = "gemini", string? userApiKey = null)

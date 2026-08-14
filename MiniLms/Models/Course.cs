@@ -12,10 +12,12 @@ namespace MiniLms.Models
 
         public string CourseCode { get; set; } = string.Empty;
 
-
         public ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
 
         public int Credits { get; set; }
+
+        // 🎯 YENİ: Dersin açık veya kapalı (arşivlenmiş) olduğunu belirten özellik (Program Admin Kontrolü)
+        public bool IsActive { get; set; } = true;
 
         // İlişki (Navigation Property)
         public ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
@@ -25,7 +27,6 @@ namespace MiniLms.Models
         public int? DepartmentId { get; set; }
         public virtual Department? Department { get; set; }
 
-        // 🎯 DÜZELTİLDİ: 'object' yerine 'ApplicationUser?' ve 'internal set' yerine 'set'
         public string? TeacherId { get; set; }
         public virtual ApplicationUser? Teacher { get; set; }
     }
