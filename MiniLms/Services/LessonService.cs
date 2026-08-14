@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using MiniLms.Interfaces;
 using MiniLms.Models;
 using MiniLms.ViewModels;
@@ -65,14 +65,20 @@ namespace MiniLms.Services
             await _lessonRepository.DeleteAsync(id);
         }
 
-        public Task UpdateAsync(Lesson lesson)
+        public async Task UpdateAsync(Lesson lesson)
         {
-            throw new NotImplementedException();
+            if (lesson == null)
+                throw new ArgumentNullException(nameof(lesson));
+
+            await _lessonRepository.UpdateAsync(lesson);
         }
 
-        public Task AddAsync(Lesson lesson)
+        public async Task AddAsync(Lesson lesson)
         {
-            throw new NotImplementedException();
+            if (lesson == null)
+                throw new ArgumentNullException(nameof(lesson));
+
+            await _lessonRepository.AddAsync(lesson);
         }
     }
 }

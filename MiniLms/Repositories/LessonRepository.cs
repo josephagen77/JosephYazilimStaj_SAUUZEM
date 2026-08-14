@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MiniLms.Data;
 using MiniLms.Interfaces;
 using MiniLms.Models;
@@ -13,9 +13,11 @@ namespace MiniLms.Repositories
            
         }
 
-        public Task DeleteAsync(Lesson lesson)
+        public async Task DeleteAsync(Lesson lesson)
         {
-            throw new NotImplementedException();
+            if (lesson == null) return;
+            _context.Lessons.Remove(lesson);
+            await _context.SaveChangesAsync();
         }
 
         public async Task<IEnumerable<Lesson>> GetByCourseIdAsync(int courseId)

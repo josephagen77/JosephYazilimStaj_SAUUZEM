@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -175,6 +175,23 @@ namespace MiniLms.Controllers
             if (result.Succeeded)
             {
                 await _userManager.AddToRoleAsync(newUser, role);
+
+                if (role == "Student" && !string.IsNullOrWhiteSpace(studentNumber))
+                {
+                    bool studentExists = await _context.Students.AnyAsync(s => s.StudentNumber == studentNumber);
+                    if (!studentExists)
+                    {
+                        _context.Students.Add(new Student
+                        {
+                            FirstName = firstName,
+                            LastName = lastName,
+                            Email = email,
+                            StudentNumber = studentNumber
+                        });
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
                 string roleName = role == "Teacher" ? "Eğitmen" : "Öğrenci";
                 TempData["SuccessMessage"] = $"{firstName} {lastName} başarıyla {roleName} olarak eklendi.";
             }

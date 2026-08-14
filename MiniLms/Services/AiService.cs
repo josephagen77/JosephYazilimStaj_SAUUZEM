@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -21,12 +22,12 @@ namespace MiniLms.Services
         public AiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
-            _apiKey = configuration["AiServices:Gemini:ApiKey"] ?? "";
+            _apiKey = configuration["AiServices:Gemini:ApiKey"] ?? configuration["GeminiApiKey"] ?? configuration["Gemini:ApiKey"] ?? "";
 
-            // 🎯 GÜNCELLENDİ: Gerçek Gemini Modellerine (1.5) ve Embedding-001'e geçirildi
+            // Modeller
             _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-1.5-flash";
-            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-1.5-flash";
-            _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "embedding-001";
+            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-pro-latest";
+            _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "gemini-embedding-001";
         }
 
         public async Task<string> GenerateQuizAsync(string text, int questionCount = 5, string provider = "gemini", string? userApiKey = null)
@@ -39,58 +40,57 @@ namespace MiniLms.Services
         public async Task<List<float>?> GetEmbeddingAsync(string text)
         {
             if (string.IsNullOrEmpty(text)) return null;
-            if (!HasValidApiKey())
+            if (!HasValidApiKey(_apiKey))
             {
-                Console.WriteLine("[Embedding API Hatası]: Kurumsal Gemini API anahtarı geçerli görünmüyor.");
                 return null;
             }
 
-            try
+            string[] embeddingModelsToTry = new[] { _embeddingModel, "gemini-embedding-001", "text-embedding-004" }
+                .Distinct()
+                .ToArray();
+
+            foreach (var modelName in embeddingModelsToTry)
             {
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_embeddingModel}:embedContent";
-                var requestBody = new { content = new { parts = new[] { new { text = text } } } };
-                string jsonPayload = JsonSerializer.Serialize(requestBody);
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url);
-                var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                request.Content = stringContent;
-                request.Headers.Add("x-goog-api-key", _apiKey);
-
-                _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                HttpResponseMessage response = await _httpClient.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
+                try
                 {
-                    string errorContent = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[Embedding API Hatası]: Kod: {response.StatusCode} - Mesaj: {errorContent}");
-                    return null;
-                }
+                    string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:embedContent";
+                    var requestBody = new { content = new { parts = new[] { new { text = text } } } };
+                    string jsonPayload = JsonSerializer.Serialize(requestBody);
 
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-                using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
-                {
-                    var root = doc.RootElement;
-                    if (root.TryGetProperty("embedding", out var embeddingProp) &&
-                        embeddingProp.TryGetProperty("values", out var valuesProp))
+                    using var request = new HttpRequestMessage(HttpMethod.Post, url);
+                    var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                    request.Content = stringContent;
+                    request.Headers.Add("x-goog-api-key", _apiKey);
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+                    if (response.IsSuccessStatusCode)
                     {
-                        var embeddingResult = new List<float>();
-                        foreach (var val in valuesProp.EnumerateArray())
+                        string jsonResponse = await response.Content.ReadAsStringAsync();
+                        using (JsonDocument doc = JsonDocument.Parse(jsonResponse))
                         {
-                            embeddingResult.Add(val.GetSingle());
+                            var root = doc.RootElement;
+                            if (root.TryGetProperty("embedding", out var embeddingProp) &&
+                                embeddingProp.TryGetProperty("values", out var valuesProp))
+                            {
+                                var embeddingResult = new List<float>();
+                                foreach (var val in valuesProp.EnumerateArray())
+                                {
+                                    embeddingResult.Add(val.GetSingle());
+                                }
+                                return embeddingResult;
+                            }
                         }
-                        return embeddingResult;
                     }
                 }
-                return null;
+                catch
+                {
+                    // Fall back to next model
+                }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Embedding Exception]: Hata Detayı: {ex.Message}");
-                return null;
-            }
+
+            return null;
         }
 
         public async Task<string> SummarizeTextAsync(string prompt, string provider = "gemini", string? userApiKey = null)
@@ -108,7 +108,7 @@ namespace MiniLms.Services
                     return await CallAnthropicAsync(prompt, userApiKey);
                 }
 
-                return await CallGeminiAsync(prompt);
+                return await CallGeminiAsync(prompt, userApiKey);
             }
             catch (Exception ex)
             {
@@ -116,37 +116,60 @@ namespace MiniLms.Services
             }
         }
 
-        private async Task<string> CallGeminiAsync(string prompt)
+        private async Task<string> CallGeminiAsync(string prompt, string? apiKey = null)
         {
-            if (!HasValidApiKey()) return "Kurumsal Gemini API anahtarı yapılandırılmamış veya geçersiz.";
+            string effectiveApiKey = !string.IsNullOrWhiteSpace(apiKey) ? apiKey : _apiKey;
+            if (!HasValidApiKey(effectiveApiKey)) return "Kurumsal Gemini API anahtarı yapılandırılmamış veya geçersiz.";
 
-            string url = $"https://generativelanguage.googleapis.com/v1beta/models/{_defaultModel}:generateContent";
-            var requestBody = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
-            string jsonPayload = JsonSerializer.Serialize(requestBody);
+            string[] modelsToTry = new[] { _defaultModel, _fallbackModel, "gemini-pro-latest", "gemini-flash-latest" }
+                .Distinct()
+                .ToArray();
 
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
-            var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-            request.Content = stringContent;
-            request.Headers.Add("x-goog-api-key", _apiKey);
+            string lastError = "";
 
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-            HttpResponseMessage response = await _httpClient.SendAsync(request);
-
-            if (!response.IsSuccessStatusCode)
+            foreach (var modelName in modelsToTry)
             {
-                string errorContent = await response.Content.ReadAsStringAsync();
-                return BuildGeminiErrorMessage((int)response.StatusCode, errorContent);
+                try
+                {
+                    string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent";
+                    var requestBody = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
+                    string jsonPayload = JsonSerializer.Serialize(requestBody);
+
+                    using var request = new HttpRequestMessage(HttpMethod.Post, url);
+                    var stringContent = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                    request.Content = stringContent;
+                    request.Headers.Add("x-goog-api-key", effectiveApiKey);
+                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    HttpResponseMessage response = await _httpClient.SendAsync(request);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        return ParseGeminiResponse(await response.Content.ReadAsStringAsync());
+                    }
+
+                    string errorContent = await response.Content.ReadAsStringAsync();
+                    lastError = BuildGeminiErrorMessage((int)response.StatusCode, errorContent);
+
+                    if ((int)response.StatusCode != 404)
+                    {
+                        return lastError;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lastError = $"Gemini bağlantı hatası: {ex.Message}";
+                }
             }
 
-            return ParseGeminiResponse(await response.Content.ReadAsStringAsync());
+            return lastError;
         }
 
         private async Task<string> CallOpenAiAsync(string prompt, string apiKey)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey.Trim());
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var requestBody = new
             {
@@ -173,6 +196,7 @@ namespace MiniLms.Services
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
             request.Headers.Add("x-api-key", apiKey.Trim());
             request.Headers.Add("anthropic-version", "2023-06-01");
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
             var requestBody = new
             {
@@ -218,15 +242,14 @@ namespace MiniLms.Services
             }
         }
 
-        private bool HasValidApiKey()
+        private bool HasValidApiKey(string? key = null)
         {
-            return !string.IsNullOrWhiteSpace(_apiKey) &&
-                   !_apiKey.Equals("apikey", StringComparison.OrdinalIgnoreCase) &&
-                   !_apiKey.Equals("USE_USER_SECRETS", StringComparison.OrdinalIgnoreCase) &&
-                   !_apiKey.Equals("YOUR_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase) &&
-                   !_apiKey.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
-                   (_apiKey.StartsWith("AIza", StringComparison.Ordinal) ||
-                    _apiKey.StartsWith("AQ.", StringComparison.Ordinal));
+            string k = key ?? _apiKey;
+            return !string.IsNullOrWhiteSpace(k) &&
+                   !k.Equals("apikey", StringComparison.OrdinalIgnoreCase) &&
+                   !k.Equals("USE_USER_SECRETS", StringComparison.OrdinalIgnoreCase) &&
+                   !k.Equals("YOUR_GEMINI_API_KEY", StringComparison.OrdinalIgnoreCase) &&
+                   !k.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string BuildGeminiErrorMessage(int statusCode, string errorContent)
@@ -237,6 +260,8 @@ namespace MiniLms.Services
                 return $"Kurumsal Gemini API anahtarı geçerli değil veya yetkisiz ({statusCode}). Detay: {message}";
             if (statusCode == 404)
                 return $"Kurumsal Gemini modeli bulunamadı ({statusCode}). Detay: {message}";
+            if (statusCode == 429)
+                return $"Gemini API istek sınırı (Kota/Rate Limit) aşıldı ({statusCode}). Lütfen birkaç saniye sonra tekrar deneyin.";
 
             return $"Gemini API şu an yanıt üretemedi ({statusCode}). Detay: {message}";
         }

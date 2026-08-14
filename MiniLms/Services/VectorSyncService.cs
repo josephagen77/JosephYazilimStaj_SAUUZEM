@@ -1,9 +1,11 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using MiniLms.Interfaces;
-using MiniLms.Models; // Modelleri kesin olarak tanıması için bu using şarttır
+using MiniLms.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,12 +16,18 @@ namespace MiniLms.Services
         private readonly IServiceProvider _serviceProvider;
         private readonly IVectorDbService _vectorDbService;
         private readonly IAiService _aiService;
+        private readonly ILogger<VectorSyncService> _logger;
 
-        public VectorSyncService(IServiceProvider serviceProvider, IVectorDbService vectorDbService, IAiService aiService)
+        public VectorSyncService(
+            IServiceProvider serviceProvider,
+            IVectorDbService vectorDbService,
+            IAiService aiService,
+            ILogger<VectorSyncService> logger)
         {
             _serviceProvider = serviceProvider;
             _vectorDbService = vectorDbService;
             _aiService = aiService;
+            _logger = logger;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -27,57 +35,67 @@ namespace MiniLms.Services
             try
             {
                 await _vectorDbService.EnsureCollectionExistsAsync("lesson_contents");
+                await _vectorDbService.EnsureCollectionExistsAsync("course_vectors");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Qdrant sunucusu henüz hazır değilse arka plan görevi patlamasın
+                _logger.LogWarning(ex, "Initial Qdrant collection check failed in VectorSyncService.");
             }
 
             while (!stoppingToken.IsCancellationRequested)
             {
+                bool hadFailures = false;
+
                 try
                 {
                     using (var scope = _serviceProvider.CreateScope())
                     {
                         var repo = scope.ServiceProvider.GetRequiredService<ILessonContentRepository>();
 
-                        // Metot çıktısını kesin olarak LessonContent listesi olarak alıyoruz
-                        IEnumerable<LessonContent> unIndexedContents = await repo.GetUnIndexedAsync();
+                        var unIndexedContents = (await repo.GetUnIndexedAsync()).ToList();
 
                         foreach (LessonContent content in unIndexedContents)
                         {
-                            // Modelinizdeki 'Body' veya 'Text' alanlarından hangisini Qdrant'a göndermek isterseniz seçebilirsiniz.
-                            // Biz ikisinin de boş olmama ihtimaline karşı dolu olan metni seçiyoruz:
                             string textToEmbed = !string.IsNullOrEmpty(content.Body) ? content.Body : content.Text;
 
-                            if (string.IsNullOrEmpty(textToEmbed)) continue;
+                            if (string.IsNullOrWhiteSpace(textToEmbed))
+                            {
+                                await repo.MarkAsIndexedAsync(content.Id);
+                                continue;
+                            }
 
                             // Gemini'dan vektör koordinatlarını al
                             var vector = await _aiService.GetEmbeddingAsync(textToEmbed);
 
-                            if (vector != null)
+                            if (vector != null && vector.Count > 0)
                             {
                                 // Qdrant Vector DB'ye kaydet
                                 await _vectorDbService.SaveVectorAsync(
                                     collectionName: "lesson_contents",
-                                    contentId: content.Id,       // Artık altı çizilmeyecek
-                                    lessonId: content.LessonId, // Artık altı çizilmeyecek
+                                    contentId: content.Id,
+                                    lessonId: content.LessonId,
                                     vector: vector,
                                     originalText: textToEmbed
                                 );
 
-                                // MySQL tarafında işaretle
+                                // Veritabanında indekslendi olarak işaretle
                                 await repo.MarkAsIndexedAsync(content.Id);
+                            }
+                            else
+                            {
+                                hadFailures = true;
                             }
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    // Döngünün devamlılığı için hataları yutuyoruz
+                    _logger.LogError(ex, "Error in VectorSyncService execution cycle.");
                 }
 
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                // Başarısızlık varsa API'yi yormamak için 5 dk, normalde 2 dk bekle
+                int delaySeconds = hadFailures ? 300 : 120;
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
             }
         }
     }

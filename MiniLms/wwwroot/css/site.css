@@ -347,41 +347,56 @@ a {
 }
 
 .quiz-options {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
 .quiz-option {
-  align-items: flex-start;
-  background: #fff;
-  border: 1px solid var(--mlms-line);
-  border-radius: 8px;
+  align-items: center;
+  background: #ffffff;
+  border: 1.5px solid var(--mlms-line);
+  border-radius: 10px;
   color: var(--mlms-ink);
+  cursor: pointer;
   display: flex;
-  gap: 0.75rem;
-  padding: 0.85rem;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
   text-align: left;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  transition: all 0.2s ease-in-out;
   width: 100%;
 }
 
-.quiz-option:hover {
+.quiz-option:hover:not(.selected) {
   border-color: rgba(36, 87, 197, 0.45);
-  box-shadow: 0 10px 22px rgba(23, 32, 42, 0.08);
+  background-color: #f8fafc;
+  box-shadow: 0 4px 12px rgba(23, 32, 42, 0.06);
   transform: translateY(-1px);
 }
 
-.quiz-option span {
+.quiz-option-badge {
   align-items: center;
   background: #edf3ff;
+  border: 1px solid rgba(36, 87, 197, 0.2);
   border-radius: 8px;
   color: var(--mlms-primary);
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 0 34px;
   font-weight: 800;
-  height: 32px;
+  font-size: 0.9rem;
+  height: 34px;
   justify-content: center;
-  width: 32px;
+  width: 34px;
+  transition: all 0.2s ease;
+}
+
+.quiz-option-text {
+  flex: 1 1 auto;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  word-break: break-word;
+  color: inherit;
+  font-weight: 500;
 }
 
 .quiz-option strong {
@@ -391,7 +406,13 @@ a {
 .quiz-option.selected {
   background: #edf3ff;
   border-color: var(--mlms-primary);
-  box-shadow: 0 0 0 0.2rem rgba(36, 87, 197, 0.12);
+  box-shadow: 0 0 0 0.2rem rgba(36, 87, 197, 0.15);
+}
+
+.quiz-option.selected .quiz-option-badge {
+  background: var(--mlms-primary);
+  border-color: var(--mlms-primary);
+  color: #ffffff;
 }
 
 .quiz-score {
@@ -455,4 +476,28 @@ a {
   .metric-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Audio Narration / Text-to-Speech Controls */
+@keyframes audioPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+  70% { transform: scale(1.03); box-shadow: 0 0 0 7px rgba(220, 53, 69, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.btn.speaking {
+  animation: audioPulse 1.4s infinite ease-in-out;
+}
+
+.chat-bubble-container {
+  position: relative;
+}
+
+.btn-speak-message {
+  transition: all 0.2s ease;
+  font-size: 11px !important;
+}
+
+.btn-speak-message:hover {
+  color: var(--mlms-primary) !important;
 }

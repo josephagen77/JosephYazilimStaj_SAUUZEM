@@ -1,4 +1,4 @@
-﻿@model MiniLms.Models.Course
+@model MiniLms.Models.Course
 @using Microsoft.Extensions.Configuration
 @inject IConfiguration Configuration
 @inject MiniLms.Data.ApplicationDbContext DbContext
@@ -202,6 +202,7 @@
                                     <div class="d-flex gap-2">
                                         <button type="button" data-id="@doc.Id" class="btn btn-sm btn-outline-primary flex-fill btn-summary fw-bold"><i class="bi bi-card-text"></i> Özetle</button>
                                         <button type="button" data-id="@doc.Id" class="btn btn-sm btn-outline-success flex-fill btn-quiz fw-bold"><i class="bi bi-ui-checks"></i> Quiz Yap</button>
+                                        <button type="button" data-id="@doc.Id" class="btn btn-sm btn-outline-info flex-fill btn-listen-doc fw-bold"><i class="bi bi-headphones"></i> Dinle</button>
 
                                         @if (User.IsInRole("Teacher"))
                                         {
@@ -293,7 +294,12 @@
                 </div>
 
                 <div id="quizQuestionArea" class="d-none">
-                    <div class="quiz-meta mb-3" id="quizMeta"></div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="quiz-meta" id="quizMeta"></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold btn-quiz-audio" id="quizAudioBtn" title="Soruyu ve şıkları sesli oku">
+                            <i class="bi bi-volume-up"></i> <span>Sesli Oku</span>
+                        </button>
+                    </div>
                     <h5 class="quiz-question fw-bold text-dark" id="quizQuestionText"></h5>
                     <div id="quizOptions" class="quiz-options mt-3"></div>
                     <div id="quizFeedback" class="quiz-feedback d-none"></div>
@@ -336,6 +342,284 @@
                 gfm: true
             });
 
+            // --- AUDIO / TEXT-TO-SPEECH (TTS) OKUYUCU (Çoklu Dil & Akıllı Dil Tespiti) ---
+            window._activeUtterances = []; // Chrome garbage collection koruması
+
+            const AudioReader = {
+                synth: ('speechSynthesis' in window) ? window.speechSynthesis : null,
+                activeButton: null,
+                voices: [],
+                isSpeaking: false,
+
+                init: function () {
+                    if (!this.synth) return;
+                    this.loadVoices();
+                    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                        window.speechSynthesis.onvoiceschanged = () => this.loadVoices();
+                    }
+                },
+
+                loadVoices: function () {
+                    if (!this.synth) return;
+                    this.voices = this.synth.getVoices() || [];
+                },
+
+                // Metnin dilini (Türkçe, İngilizce, Almanca, Fransızca, İspanyolca, Arapça vb.) otomatik tespit eder
+                detectLanguage: function (text) {
+                    if (!text) return 'tr-TR';
+
+                    // 1. Karakter Seti Analizi (Arapça, Rusça, Çince, Japonca)
+                    if (/[\u0600-\u06FF]/.test(text)) return 'ar-SA';
+                    if (/[\u0400-\u04FF]/.test(text)) return 'ru-RU';
+                    if (/[\u4E00-\u9FFF]/.test(text)) return 'zh-CN';
+                    if (/[\u3040-\u30FF]/.test(text)) return 'ja-JP';
+
+                    const lower = text.toLowerCase();
+                    const words = lower.match(/\b[a-zçğıöşüáéíóúàèìòùäëïöüâêîôûñß]+\b/g) || [];
+
+                    // Türkçe skoru (Harf ve sık kullanılan kelimeler)
+                    const trLetters = (lower.match(/[çğıöşü]/g) || []).length * 4;
+                    const trWords = words.filter(w => ['ve','bir','bu','da','de','ile','için','olan','olarak','var','yok','soru','şıkkı','ders','doküman','cevap','hangisidir','nedir'].includes(w)).length * 3;
+                    const trScore = trLetters + trWords;
+
+                    // İngilizce skoru
+                    const enScore = words.filter(w => ['the','is','are','was','were','in','of','to','and','with','this','that','which','for','from','what','how','question','option','answer','following','which','why'].includes(w)).length * 3;
+
+                    // Almanca skoru
+                    const deScore = words.filter(w => ['der','die','das','und','ist','sind','in','ein','eine','für','nicht','mit','auf','den','dem','frage','antwort'].includes(w)).length * 3 + (lower.match(/[äöüß]/g) || []).length * 3;
+
+                    // Fransızca skoru
+                    const frScore = words.filter(w => ['le','la','les','et','est','sont','dans','un','une','pour','avec','sur','que','qui','ce','cette','question'].includes(w)).length * 3 + (lower.match(/[éèêàùç]/g) || []).length * 2;
+
+                    // İspanyolca skoru
+                    const esScore = words.filter(w => ['el','la','los','las','y','es','son','en','un','una','para','con','por','que','del','al','pregunta','opcion'].includes(w)).length * 3 + (lower.match(/[áéíóúñ¿¡]/g) || []).length * 3;
+
+                    const scores = [
+                        { lang: 'tr-TR', score: trScore },
+                        { lang: 'en-US', score: enScore },
+                        { lang: 'de-DE', score: deScore },
+                        { lang: 'fr-FR', score: frScore },
+                        { lang: 'es-ES', score: esScore }
+                    ];
+
+                    scores.sort((a, b) => b.score - a.score);
+
+                    if (scores[0].score > 0) {
+                        return scores[0].lang;
+                    }
+
+                    // Varsayılan dil
+                    if (/[çğıöşüÇĞİÖŞÜ]/.test(text)) return 'tr-TR';
+                    return navigator.language || 'tr-TR';
+                },
+
+                // Tespit edilen dile göre en doğal / uygun sesi seçer
+                getPreferredVoiceForLang: function (langCode) {
+                    if (!this.voices || this.voices.length === 0) {
+                        this.loadVoices();
+                    }
+                    if (!this.voices || this.voices.length === 0) return null;
+
+                    const prefix = langCode.split('-')[0].toLowerCase();
+
+                    // 1. O dil için doğal/neural ses ara (Google, Natural, Neural, Online)
+                    let voice = this.voices.find(v => v.lang.toLowerCase().startsWith(prefix) && 
+                        (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural') || 
+                         v.name.includes('Tolga') || v.name.includes('Ahmet') || v.name.includes('Emel') || 
+                         v.name.includes('Jenny') || v.name.includes('Guy') || v.name.includes('Aria')));
+                    
+                    // 2. O dile ait herhangi bir ses ara
+                    if (!voice) {
+                        voice = this.voices.find(v => v.lang.toLowerCase().startsWith(prefix));
+                    }
+
+                    // 3. Varsayılan sistem sesine dön
+                    if (!voice) {
+                        voice = this.voices.find(v => v.default) || this.voices[0];
+                    }
+                    return voice;
+                },
+
+                // Quiz okumalarında soru ve şık etiketlerini dile göre belirler
+                getQuizPrefixes: function (langCode) {
+                    const prefix = (langCode || 'tr').split('-')[0].toLowerCase();
+                    switch(prefix) {
+                        case 'en':
+                            return {
+                                question: (num) => "Question " + num + ": ",
+                                option: (letter) => "Option " + letter + ": "
+                            };
+                        case 'de':
+                            return {
+                                question: (num) => "Frage " + num + ": ",
+                                option: (letter) => "Option " + letter + ": "
+                            };
+                        case 'fr':
+                            return {
+                                question: (num) => "Question " + num + ": ",
+                                option: (letter) => "Option " + letter + ": "
+                            };
+                        case 'es':
+                            return {
+                                question: (num) => "Pregunta " + num + ": ",
+                                option: (letter) => "Opción " + letter + ": "
+                            };
+                        case 'ar':
+                            return {
+                                question: (num) => "السؤال " + num + ": ",
+                                option: (letter) => "الخيار " + letter + ": "
+                            };
+                        case 'tr':
+                        default:
+                            return {
+                                question: (num) => "Soru " + num + ": ",
+                                option: (letter) => letter + " şıkkı: "
+                            };
+                    }
+                },
+
+                cleanTextForSpeech: function (text) {
+                    if (!text) return "";
+                    return text
+                        .replace(/```[\s\S]*?```/g, ' Code snippet skipped. ')
+                        .replace(/`([^`]+)`/g, '$1')
+                        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+                        .replace(/#{1,6}\s*/g, '')
+                        .replace(/(\*\*|__)(.*?)\1/g, '$2')
+                        .replace(/(\*|_)(.*?)\1/g, '$2')
+                        .replace(/^\s*[-*+]\s+/gm, '')
+                        .replace(/^\s*\d+\.\s+/gm, '')
+                        .replace(/>\s*/g, '')
+                        .replace(/<[^>]*>/g, '')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                },
+
+                // Uzun metinleri cümlelere bölerek Chrome'un durmasını önler
+                splitIntoSentences: function (text) {
+                    if (!text) return [];
+                    const sentences = text.match(/[^.!?\n]+[.!?\n]+/g) || [text];
+                    return sentences.map(s => s.trim()).filter(s => s.length > 0);
+                },
+
+                speak: function (text, btnElement, onComplete, explicitLang) {
+                    if (!this.synth) {
+                        alert('Tarayıcınız sesli okuma özelliğini desteklemiyor.');
+                        return;
+                    }
+
+                    // Aynı butona tekrar tıklandıysa durdur
+                    if (this.isSpeaking && this.activeButton === btnElement) {
+                        this.stop();
+                        return;
+                    }
+
+                    this.stop();
+
+                    const clean = this.cleanTextForSpeech(text);
+                    if (!clean) return;
+
+                    const sentences = this.splitIntoSentences(clean);
+                    if (sentences.length === 0) return;
+
+                    this.loadVoices();
+
+                    // Dil tespiti (veya belirtilen dil)
+                    const detectedLang = explicitLang || this.detectLanguage(clean);
+                    const voice = this.getPreferredVoiceForLang(detectedLang);
+                    const voiceLang = (voice && voice.lang) ? voice.lang : detectedLang;
+
+                    this.activeButton = btnElement;
+                    this.isSpeaking = true;
+                    this.setButtonState(btnElement, true);
+
+                    window._activeUtterances = [];
+
+                    // Chrome kilitlenmesini çözmek için unpause et
+                    if (this.synth.paused) {
+                        this.synth.resume();
+                    }
+
+                    let index = 0;
+                    const speakNext = () => {
+                        if (!this.isSpeaking || index >= sentences.length) {
+                            this.stop();
+                            if (onComplete) onComplete();
+                            return;
+                        }
+
+                        const sentence = sentences[index++];
+                        const utterance = new SpeechSynthesisUtterance(sentence);
+                        utterance.volume = 1.0;
+                        utterance.rate = 1.0;
+                        utterance.pitch = 1.0;
+
+                        if (voice) {
+                            utterance.voice = voice;
+                            utterance.lang = voice.lang;
+                        } else {
+                            utterance.lang = voiceLang;
+                        }
+
+                        utterance.onend = () => {
+                            if (this.isSpeaking) {
+                                speakNext();
+                            }
+                        };
+
+                        utterance.onerror = (e) => {
+                            console.warn('TTS utterance error:', e);
+                            if (this.isSpeaking) {
+                                speakNext();
+                            }
+                        };
+
+                        window._activeUtterances.push(utterance);
+                        this.synth.speak(utterance);
+                    };
+
+                    speakNext();
+                },
+
+                stop: function () {
+                    this.isSpeaking = false;
+                    window._activeUtterances = [];
+                    if (this.synth) {
+                        this.synth.cancel();
+                    }
+                    if (this.activeButton) {
+                        this.setButtonState(this.activeButton, false);
+                        this.activeButton = null;
+                    }
+                },
+
+                setButtonState: function (btn, isSpeaking) {
+                    if (!btn) return;
+                    const $btn = $(btn);
+                    if (isSpeaking) {
+                        $btn.addClass('speaking btn-danger text-white').removeClass('btn-outline-primary btn-outline-secondary btn-outline-info');
+                        $btn.find('i').attr('class', 'bi bi-stop-fill');
+                        $btn.find('span').text('Durdur');
+                    } else {
+                        $btn.removeClass('speaking btn-danger text-white');
+                        if ($btn.hasClass('btn-quiz-audio')) {
+                            $btn.addClass('btn-outline-primary');
+                            $btn.find('span').text('Sesli Oku');
+                        } else if ($btn.hasClass('btn-listen-doc')) {
+                            $btn.addClass('btn-outline-info');
+                            $btn.find('span').text('Dinle');
+                        } else {
+                            $btn.addClass('btn-outline-secondary');
+                            $btn.find('span').text('Dinle');
+                        }
+                        $btn.find('i').attr('class', 'bi bi-volume-up');
+                    }
+                }
+            };
+
+            AudioReader.init();
+
             function scrollToBottom() {
                 chatWindow.scrollTop(chatWindow[0].scrollHeight);
             }
@@ -363,11 +647,24 @@
                     parsedContent = marked.parse(cleanedContent);
                 }
 
+                let audioToolbar = "";
+                if (!isUser) {
+                    audioToolbar = `
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top border-secondary border-opacity-10">
+                            <small class="text-muted" style="font-size: 11px;"><i class="bi bi-robot"></i> AI Yanıtı</small>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 btn-speak-message" title="Sesli Dinle">
+                                <i class="bi bi-volume-up"></i> <span>Dinle</span>
+                            </button>
+                        </div>
+                    `;
+                }
+
                 let html = `
-                    <div class="${alignment} ${padding} mb-3">
+                    <div class="${alignment} ${padding} mb-3 chat-bubble-container">
                         <div class="small text-muted mb-1">${icon}</div>
-                        <div class="d-inline-block p-3 rounded shadow-sm text-start ${bgColor}" style="word-wrap: break-word; overflow-x: auto;">
-                            ${parsedContent}
+                        <div class="d-inline-block p-3 rounded shadow-sm text-start ${bgColor}" style="word-wrap: break-word; overflow-x: auto; max-width: 90%;">
+                            <div class="chat-message-content">${parsedContent}</div>
+                            ${audioToolbar}
                         </div>
                     </div>
                 `;
@@ -375,6 +672,13 @@
                 chatWindow.append(html);
                 scrollToBottom();
             }
+
+            // Mesaj balonlarındaki "Dinle" butonu
+            $(document).on("click", ".btn-speak-message", function () {
+                var messageEl = $(this).closest(".chat-bubble-container").find(".chat-message-content");
+                var textToRead = messageEl.text();
+                AudioReader.speak(textToRead, this);
+            });
 
             function appendLoadingIndicator() {
                 let id = 'loading-' + Date.now();
@@ -488,10 +792,50 @@
                 });
             });
 
+            // 🎯 YENİ: Dokümanı Sesli Özetle ve Oku
+            $(".btn-listen-doc").click(function () {
+                var docId = $(this).data("id");
+                var btn = this;
+                currentSummaryDocId = docId;
+                $("#documentIdSelect").val(docId);
+                $(".btn-quiz-from-summary").hide();
+
+                appendChatMessage("user", "Lütfen bu dokümanı özetle ve sesli dinlet.");
+                let loadingId = appendLoadingIndicator();
+
+                $.ajax({
+                    url: '@Url.Action("DocumentSummary", "AiAssistant")',
+                    type: 'GET',
+                    data: getAjaxData({
+                        courseId: '@Model.Id',
+                        documentId: docId
+                    }),
+                    success: function (data) {
+                        $("#" + loadingId).remove();
+                        if (data.success) {
+                            appendChatMessage("model", data.response);
+                            $(".btn-quiz-from-summary").fadeIn();
+                            // Otomatik olarak özeti sesli oku
+                            AudioReader.speak(data.response, btn);
+                        } else {
+                            appendChatMessage("model", data.response);
+                        }
+                    },
+                    error: function () {
+                        $("#" + loadingId).remove();
+                        appendChatMessage("model", "⚠️ Sunucuyla iletişim kurulamadı.");
+                    }
+                });
+            });
+
             // --- QUIZ YÖNETİMİ ---
             var quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: null };
             var quizModal = new bootstrap.Modal(document.getElementById("quizModal"));
             var currentSummaryDocId = null;
+
+            $('#quizModal').on('hidden.bs.modal', function () {
+                AudioReader.stop();
+            });
 
             $(".btn-quiz-from-summary").click(function() {
                 if(currentSummaryDocId) {
@@ -514,6 +858,7 @@
 
             $("#quizNextBtn").click(function () {
                 if (quizState.selectedIndex === null) return;
+                AudioReader.stop();
                 quizState.answers[quizState.currentIndex] = quizState.selectedIndex;
                 if (quizState.currentIndex >= quizState.questions.length - 1) {
                     renderQuizResult();
@@ -523,7 +868,25 @@
                 renderQuizQuestion();
             });
 
+            // Quiz sorusunu ve şıklarını metnin diline göre otomatik sesli oku
+            $("#quizAudioBtn").click(function () {
+                var q = quizState.questions[quizState.currentIndex];
+                if (!q) return;
+
+                var detectedLang = AudioReader.detectLanguage(q.question);
+                var prefixes = AudioReader.getQuizPrefixes(detectedLang);
+
+                var textToRead = prefixes.question(quizState.currentIndex + 1) + q.question + ". ";
+                if (q.options && q.options.length > 0) {
+                    q.options.forEach(function (opt, i) {
+                        textToRead += prefixes.option(String.fromCharCode(65 + i)) + opt + ". ";
+                    });
+                }
+                AudioReader.speak(textToRead, this, null, detectedLang);
+            });
+
             function resetQuizModal() {
+                AudioReader.stop();
                 quizState = { questions: [], currentIndex: 0, answers: [], selectedIndex: null, documentId: quizState.documentId };
                 $("#quizProgressText").text("Ayarları seçin");
                 $("#quizProgressBar").css("width", "0%");
@@ -535,6 +898,7 @@
             }
 
             function loadQuiz() {
+                AudioReader.stop();
                 $("#quizSetup").addClass("d-none");
                 $("#quizLoading").removeClass("d-none");
                 $("#quizStartBtn").prop("disabled", true);
@@ -565,6 +929,7 @@
             }
 
             function renderQuizQuestion() {
+                AudioReader.stop();
                 var question = quizState.questions[quizState.currentIndex];
                 quizState.selectedIndex = quizState.answers[quizState.currentIndex];
                 var progress = ((quizState.currentIndex + 1) / quizState.questions.length) * 100;
@@ -583,22 +948,24 @@
 
                 var optionsHtml = "";
                 question.options.forEach(function (option, index) {
-                    var selectedClass = quizState.selectedIndex === index ? " selected bg-primary text-white border-primary" : " bg-white border";
-                    optionsHtml += "<button type='button' class='quiz-option w-100 text-start p-3 mb-2 rounded shadow-sm transition-all" + selectedClass + "' data-index='" + index + "'>";
-                    optionsHtml += "<span class='fw-bold me-3 py-1 px-2 rounded-circle bg-light text-dark border'>" + String.fromCharCode(65 + index) + "</span>";
-                    optionsHtml += "<span>" + escapeHtml(option) + "</span></button>";
+                    var selectedClass = quizState.selectedIndex === index ? " selected" : "";
+                    optionsHtml += "<button type='button' class='quiz-option" + selectedClass + "' data-index='" + index + "'>";
+                    optionsHtml += "<span class='quiz-option-badge'>" + String.fromCharCode(65 + index) + "</span>";
+                    optionsHtml += "<span class='quiz-option-text'>" + escapeHtml(option) + "</span>";
+                    optionsHtml += "</button>";
                 });
                 $("#quizOptions").html(optionsHtml);
             }
 
             $(document).on("click", ".quiz-option", function () {
                 quizState.selectedIndex = parseInt($(this).data("index"));
-                $(".quiz-option").removeClass("selected bg-primary text-white border-primary").addClass("bg-white border");
-                $(this).removeClass("bg-white").addClass("selected bg-primary text-white border-primary");
+                $(".quiz-option").removeClass("selected");
+                $(this).addClass("selected");
                 $("#quizNextBtn").prop("disabled", false);
             });
 
             function renderQuizResult() {
+                AudioReader.stop();
                 var score = 0;
                 var reviewHtml = "";
                 quizState.questions.forEach(function (question, index) {
@@ -628,6 +995,7 @@
             }
 
             function showQuizError(message) {
+                AudioReader.stop();
                 $("#quizLoading").addClass("d-none");
                 $("#quizResultArea").removeClass("d-none");
                 $("#quizScoreText").html("<i class='bi bi-exclamation-triangle text-warning'></i>");
@@ -646,20 +1014,6 @@
         });
     </script>
     <style>
-        .quiz-option {
-            cursor: pointer;
-            border-width: 2px !important;
-        }
-
-            .quiz-option:hover:not(.selected) {
-                background-color: #f8f9fa !important;
-                border-color: #0d6efd !important;
-            }
-
-        .transition-all {
-            transition: all 0.2s ease-in-out;
-        }
-
         .ai-panel .bg-light p:last-child {
             margin-bottom: 0;
         }

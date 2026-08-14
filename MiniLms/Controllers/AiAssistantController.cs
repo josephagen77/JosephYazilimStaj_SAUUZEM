@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using MiniLms.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using System;
@@ -53,34 +53,36 @@ namespace MiniLms.Controllers
                 return (false, "", $"{provider.Name} Sistem Yöneticisi tarafından geçici olarak devre dışı bırakılmıştır.");
             }
 
-            // GEMINI (Varsayılan): User Secrets'tan veya GlobalApiKey'den oku
+            // 1. GEMINI (Varsayılan Kurumsal Model - Sadece Sistem Yöneticisi Tarafından Yönetilir):
             if (providerKey.ToLower().Trim() == "gemini")
             {
                 string geminiKey = !string.IsNullOrEmpty(provider?.GlobalApiKey)
                     ? provider.GlobalApiKey
-                    : (_configuration["GeminiApiKey"] ?? _configuration["Gemini:ApiKey"] ?? string.Empty);
+                    : (_configuration["AiServices:Gemini:ApiKey"] ?? _configuration["GeminiApiKey"] ?? _configuration["Gemini:ApiKey"] ?? string.Empty);
 
                 if (string.IsNullOrEmpty(geminiKey))
                 {
-                    return (false, "", "Sistemde tanımlı Google Gemini API anahtarı (User Secrets) bulunamadı.");
+                    return (false, "", "Sistemde tanımlı varsayılan Google Gemini API anahtarı bulunamadı. Lütfen Sistem Yöneticisi ile iletişime geçin.");
                 }
 
                 return (true, geminiKey, "");
             }
 
-            // DİĞER MODELLER (ChatGPT, Claude vb.):
+            // 2. DİĞER MODELLER (ChatGPT, Claude vb. - Öğrencinin Kendi Anahtarı Gerekir):
             if (provider == null)
                 return (false, "", "Geçersiz yapay zeka sağlayıcısı.");
 
+            // Sistem yöneticisi bu modele global bir kurumsal anahtar tanımlamışsa onu kullanabilir
             if (!string.IsNullOrEmpty(provider.GlobalApiKey))
                 return (true, provider.GlobalApiKey, "");
 
+            // Aksi takdirde öğrencinin kendi profiline kaydettiği şahsi anahtar kullanılır
             var userSavedKey = await _context.UserAiProviders
                 .FirstOrDefaultAsync(u => u.UserId == userId && u.AiProviderId == provider.Id);
 
             if (userSavedKey == null || string.IsNullOrEmpty(userSavedKey.ApiKey))
             {
-                return (false, "", $"Bu model ({provider.Name}) için profilinizde kayıtlı bir API anahtarı bulunamadı. Lütfen sağ üstteki menüden 'API Anahtarlarım' sayfasına giderek anahtarınızı ekleyin.");
+                return (false, "", $"{provider.Name} modelini kullanabilmek için kendi API anahtarınızı tanımlamanız gerekmektedir. Lütfen sağ üst menüden 'API Anahtarlarım' sayfasına giderek anahtarınızı ekleyin veya varsayılan Gemini modelini kullanın.");
             }
 
             return (true, userSavedKey.ApiKey, "");

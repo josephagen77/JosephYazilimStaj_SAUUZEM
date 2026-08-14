@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MiniLms.Models;
 
@@ -45,19 +45,44 @@ namespace MiniLms.Data
                 }
             }
 
-            // 3. Varsayılan Gemini AI Modeli Ekle (Sistem Yöneticisi Kapatıp Açabilsin)
+            // 3. Varsayılan AI Modelleri (Gemini = Varsayılan Kurumsal, Diğerleri = İsteğe Bağlı Şahsi Anahtar)
             var geminiProvider = await context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == "gemini");
             if (geminiProvider == null)
             {
                 context.AiProviders.Add(new AiProvider
                 {
-                    Name = "Google Gemini (Varsayılan Kurumsal Mod)",
+                    Name = "Google Gemini (Varsayılan Kurumsal Model)",
                     ProviderKey = "gemini",
                     IsActive = true,
-                    GlobalApiKey = null // Null olduğu için User Secrets'tan çekecek
+                    GlobalApiKey = null
                 });
-                await context.SaveChangesAsync();
             }
+
+            var chatGptProvider = await context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == "chatgpt");
+            if (chatGptProvider == null)
+            {
+                context.AiProviders.Add(new AiProvider
+                {
+                    Name = "OpenAI ChatGPT (GPT-4o Mini)",
+                    ProviderKey = "chatgpt",
+                    IsActive = true,
+                    GlobalApiKey = null
+                });
+            }
+
+            var claudeProvider = await context.AiProviders.FirstOrDefaultAsync(p => p.ProviderKey == "claude");
+            if (claudeProvider == null)
+            {
+                context.AiProviders.Add(new AiProvider
+                {
+                    Name = "Anthropic Claude (Claude 3.5 Sonnet)",
+                    ProviderKey = "claude",
+                    IsActive = true,
+                    GlobalApiKey = null
+                });
+            }
+
+            await context.SaveChangesAsync();
         }
     }
 }

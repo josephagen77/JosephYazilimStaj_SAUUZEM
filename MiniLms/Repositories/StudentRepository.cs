@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MiniLms.Data;
 using MiniLms.Interfaces;
 using MiniLms.Models;
@@ -67,9 +67,9 @@ namespace MiniLms.Repositories
                 .FirstOrDefaultAsync(s => s.StudentNumber == studentNumber);
         }
 
-        public Task SaveChangesAsync()
+        public async Task SaveChangesAsync()
         {
-            throw new NotImplementedException();
+            await _context.SaveChangesAsync();
         }
     }
 }

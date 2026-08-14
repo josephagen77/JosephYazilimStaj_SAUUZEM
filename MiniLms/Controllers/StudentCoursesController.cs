@@ -81,12 +81,26 @@ namespace MiniLms.Controllers
         private async Task<Student?> GetCurrentStudentAsync()
         {
             var user = await _userManager.GetUserAsync(User);
-            if (string.IsNullOrWhiteSpace(user?.StudentNumber))
+            if (user == null || string.IsNullOrWhiteSpace(user.StudentNumber))
             {
                 return null;
             }
 
-            return await _studentService.GetStudentByNumberAsync(user.StudentNumber);
+            var student = await _studentService.GetStudentByNumberAsync(user.StudentNumber);
+            if (student == null)
+            {
+                await _studentService.AddStudentAsync(new StudentCreateViewModel
+                {
+                    FirstName = user.FirstName ?? "Öğrenci",
+                    LastName = user.LastName ?? "",
+                    Email = user.Email ?? "",
+                    StudentNumber = user.StudentNumber
+                });
+
+                student = await _studentService.GetStudentByNumberAsync(user.StudentNumber);
+            }
+
+            return student;
         }
     }
 }

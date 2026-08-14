@@ -83,18 +83,21 @@ builder.Services.AddScoped<IStudentAnalyticsService, StudentAnalyticsService>();
 // HTTPCLIENT ENTEGRASYONLU AI VE VECTOR SERVİSLERİ
 builder.Services.AddHttpClient<IAiService, AiService>();
 
-// 🎯 YENİ: Gerçek Qdrant Cloud Bağlantısı (Header Enjeksiyonu)
+// 🎯 Gerçek Qdrant Cloud Bağlantısı (BaseAddress + API Key)
 builder.Services.AddHttpClient<IVectorDbService, VectorDbService>(client =>
 {
     var qdrantUrl = builder.Configuration["AiServices:Qdrant:BaseUrl"];
     var qdrantApiKey = builder.Configuration["AiServices:Qdrant:ApiKey"];
 
-    if (!string.IsNullOrEmpty(qdrantUrl))
+    if (!string.IsNullOrWhiteSpace(qdrantUrl))
     {
+        if (!qdrantUrl.EndsWith("/"))
+        {
+            qdrantUrl += "/";
+        }
         client.BaseAddress = new Uri(qdrantUrl);
     }
 
-    // Qdrant Cloud güvenlik doğrulaması için API Key başlığı ('api-key')
     if (!string.IsNullOrEmpty(qdrantApiKey) && qdrantApiKey != "USE_USER_SECRETS")
     {
         client.DefaultRequestHeaders.Add("api-key", qdrantApiKey);
