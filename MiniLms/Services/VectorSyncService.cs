@@ -51,7 +51,9 @@ namespace MiniLms.Services
                     using (var scope = _serviceProvider.CreateScope())
                     {
                         var repo = scope.ServiceProvider.GetRequiredService<ILessonContentRepository>();
+                        var context = scope.ServiceProvider.GetRequiredService<Data.ApplicationDbContext>();
 
+                        // 1. DERS DOKÜMAN VE İÇERİKLERİNİ QDRANT'A SENKRONİZE ET
                         var unIndexedContents = (await repo.GetUnIndexedAsync()).ToList();
 
                         foreach (LessonContent content in unIndexedContents)
@@ -84,6 +86,18 @@ namespace MiniLms.Services
                             else
                             {
                                 hadFailures = true;
+                            }
+                        }
+
+                        // 2. KURSLARI SEMANTİK ARAMA İÇİN QDRANT'A SENKRONİZE ET
+                        var courses = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(context.Courses);
+                        foreach (var course in courses)
+                        {
+                            string courseSearchText = $"{course.Title} - {course.Description}";
+                            var courseVector = await _aiService.GetEmbeddingAsync(courseSearchText);
+                            if (courseVector != null && courseVector.Count > 0)
+                            {
+                                await _vectorDbService.SaveCourseVectorAsync(course.Id, courseVector, courseSearchText);
                             }
                         }
                     }

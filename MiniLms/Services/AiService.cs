@@ -25,8 +25,8 @@ namespace MiniLms.Services
             _apiKey = configuration["AiServices:Gemini:ApiKey"] ?? configuration["GeminiApiKey"] ?? configuration["Gemini:ApiKey"] ?? "";
 
             // Modeller
-            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-1.5-flash";
-            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-pro-latest";
+            _defaultModel = configuration["AiServices:Gemini:DefaultModel"] ?? "gemini-3.5-flash";
+            _fallbackModel = configuration["AiServices:Gemini:FallbackTextModel"] ?? "gemini-3.5-flash-lite";
             _embeddingModel = configuration["AiServices:Gemini:EmbeddingModel"] ?? "gemini-embedding-001";
         }
 
@@ -121,7 +121,7 @@ namespace MiniLms.Services
             string effectiveApiKey = !string.IsNullOrWhiteSpace(apiKey) ? apiKey : _apiKey;
             if (!HasValidApiKey(effectiveApiKey)) return "Kurumsal Gemini API anahtarı yapılandırılmamış veya geçersiz.";
 
-            string[] modelsToTry = new[] { _defaultModel, _fallbackModel, "gemini-pro-latest", "gemini-flash-latest" }
+            string[] modelsToTry = new[] { _defaultModel, _fallbackModel, "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-3.7-flash" }
                 .Distinct()
                 .ToArray();
 
@@ -150,11 +150,6 @@ namespace MiniLms.Services
 
                     string errorContent = await response.Content.ReadAsStringAsync();
                     lastError = BuildGeminiErrorMessage((int)response.StatusCode, errorContent);
-
-                    if ((int)response.StatusCode != 404)
-                    {
-                        return lastError;
-                    }
                 }
                 catch (Exception ex)
                 {
